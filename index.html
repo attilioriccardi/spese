@@ -1000,8 +1000,9 @@ function openForm(x, opz = {}) {
       batch.set(ref, { img: st.scontrinoData, caricatoDa: me, caricatoIl: serverTimestamp() });
     } else if (st.rimuoviScontrino && st.scontrinoId) batch.delete(doc(scontriniCol, st.scontrinoId));
 
+    const scontrinoBytes = !scontrinoId ? 0 : st.scontrinoData ? st.scontrinoData.length : (x?.scontrinoBytes || 0);
     const rec = { tipo: "spesa", gruppoId: st.gruppoId, descrizione, importoCents, dovutoCents, data: dataV, categoria: st.categoria,
-                  pagatoDa: st.pagatoDa, divisione: st.divisione, scontrinoId };
+                  pagatoDa: st.pagatoDa, divisione: st.divisione, scontrinoId, scontrinoBytes };
     if (x) batch.update(doc(speseCol, x.id), { ...rec, modificatoDa: me, modificatoIl: serverTimestamp() });
     else batch.set(doc(speseCol), { ...rec, creatoDa: me, creatoIl: serverTimestamp() });
     batch.commit().catch(e => toast("Errore nel salvataggio: " + errMsg(e)));
@@ -1096,10 +1097,33 @@ function esportaCSV(lista, nomeFile) {
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   a.download = `${nomeFile.replace(/[^\w\- ]+/g, "").trim() || "spese"}-${oggi()}.csv`; a.click();
 }
+// Stima dello spazio usato nel database (limite gratuito: 1 GB)
+function boxSpazio() {
+  const LIMITE = 1024 ** 3;
+  const conFoto = spese.filter(x => x.scontrinoId);
+  const vecchie = conFoto.filter(x => !x.scontrinoBytes).length;     // salvate prima che si registrasse il peso
+  const bytesFoto = conFoto.reduce((a, x) => a + (x.scontrinoBytes || 700000), 0);
+  const bytesDati = (spese.length + attivita.length + gruppi.length) * 500;
+  const tot = bytesFoto + bytesDati;
+  const mis = b => b < 1024 ** 2 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 ** 2).toLocaleString("it-IT", { maximumFractionDigits: 1 })} MB`;
+  const perc = tot / LIMITE * 100;
+  const media = conFoto.length - vecchie > 0 ? (bytesFoto - vecchie * 700000) / (conFoto.length - vecchie) : 0;
+  const restanti = media > 0 ? Math.floor((LIMITE - tot) / media) : 0;
+  return `<div class="box" style="margin:0 0 16px">
+    <h3 style="margin-bottom:6px">Spazio usato</h3>
+    <div style="font-size:22px;font-weight:700">${mis(tot)} <span class="grey" style="font-size:15px;font-weight:400">su 1 GB gratuito</span></div>
+    <div class="bar" style="margin:10px 0"><i style="width:${Math.max(0.5, Math.min(100, perc)).toFixed(2)}%;${perc > 80 ? "background:var(--orange)" : ""}"></i></div>
+    <div class="grey" style="font-size:14px;line-height:1.5">
+      ${perc.toLocaleString("it-IT", { maximumFractionDigits: perc < 1 ? 2 : 1 })}% · ${conFoto.length} ${conFoto.length === 1 ? "scontrino" : "scontrini"} (${mis(bytesFoto)}) · ${spese.length} voci (${mis(bytesDati)})
+      ${restanti ? `<br>C'è ancora posto per circa ${restanti.toLocaleString("it-IT")} scontrini.` : ""}
+      ${vecchie ? `<br>${vecchie} scontrini caricati prima di questo aggiornamento sono stimati a 700 KB l'uno.` : ""}
+    </div></div>`;
+}
 $("b-menu").onclick = () => {
   openSheet(`
     <h2>Impostazioni</h2>
     <p class="grey" style="margin-top:-8px">Collegato come ${esc(nome(me))} (${esc(me)})</p>
+    ${boxSpazio()}
     <button class="btn ghost" id="m-csv">Esporta tutte le spese in CSV</button><div class="gap"></div>
     <button class="btn danger" id="m-out">Esci</button>
     <p class="grey" style="font-size:14px">Per importare da Splitwise apri un gruppo e usa il suo ⚙︎.</p>
