@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spese">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Spese di casa</title>
+<style>
+  :root{
+    --bg:#1b1f22; --card:#252a2e; --card2:#2e3439; --line:#3a4146;
+    --text:#f2f4f5; --muted:#9aa4ab; --green:#4caf8e; --green-d:#3d9a7b;
+    --orange:#ff8a4c; --red:#e5575a;
+    --safe-b:env(safe-area-inset-bottom,0px); --safe-t:env(safe-area-inset-top,0px);
+    --nav-h:64px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  button{font:inherit;color:inherit;cursor:pointer}
+  input,select{font:inherit}
+  .hidden{display:none!important}
+  .wrap{max-width:760px;margin:0 auto}
+
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+
+  /* Login */
+  #login{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:32px 24px;max-width:460px;margin:0 auto}
+  #login h1{font-size:34px;margin:0 0 6px}
+  #login p{color:var(--muted);margin:0 0 28px}
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .field input,.field select,select.inp{width:100%;padding:14px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font-size:17px;outline:none}
+  .field input:focus{border-color:var(--green)}
+  .btn{display:block;width:100%;padding:15px;border-radius:999px;border:none;background:var(--green);
+    color:#fff;font-weight:600;font-size:17px;text-align:center}
+  .btn:active{background:var(--green-d)}
+  .btn:disabled{opacity:.5}
+  .btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--text)}
+  .btn.danger{background:transparent;border:1.5px solid var(--red);color:var(--red)}
+  .link{background:none;border:none;color:var(--green);padding:14px 0;font-size:15px}
+
+  /* Header */
+  header{padding:calc(var(--safe-t) + 18px) 20px 18px;
+    background:linear-gradient(160deg,#2f6b58 0%,#1f3d34 60%,var(--bg) 100%)}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .top h1{margin:0;font-size:28px;font-weight:800;letter-spacing:-.3px}
+  .iconbtn{width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.25);
+    background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+  .saldo{margin-top:20px;font-size:20px}
+  .saldo b{font-weight:700}
+  .pos{color:var(--green)} .neg{color:var(--orange)} .grey{color:var(--muted)}
+  .chips{display:flex;gap:10px;margin-top:16px;overflow-x:auto;scrollbar-width:none}
+  .chip{flex:none;padding:9px 16px;border-radius:999px;border:1.5px solid rgba(255,255,255,.5);
+    background:transparent;font-weight:600;font-size:15px;white-space:nowrap}
+  .chip.on{background:#fff;color:#1b1f22;border-color:#fff}
+  select.chip{appearance:none;-webkit-appearance:none;padding-right:30px;color:var(--text);
+    background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center}
+  select.chip option{color:#000}
+
+  .view{padding-bottom:calc(var(--safe-b) + var(--nav-h) + 96px)}
+  .pagehead{padding:calc(var(--safe-t) + 18px) 20px 6px}
+  .pagehead h1{margin:0;font-size:28px;font-weight:800}
+
+  /* List */
+  .month{display:flex;justify-content:space-between;padding:20px 20px 8px;color:var(--muted);
+    font-size:13px;text-transform:uppercase;letter-spacing:.6px}
+  .item{display:flex;align-items:center;gap:14px;padding:11px 20px;width:100%;background:none;border:none;text-align:left}
+  .item:active{background:var(--card)}
+  .date{width:30px;text-align:center;color:var(--muted);line-height:1.1;flex:none}
+  .date small{display:block;font-size:12px} .date b{font-size:19px;font-weight:500}
+  .ico{width:46px;height:46px;border-radius:8px;background:var(--card2);display:flex;
+    align-items:center;justify-content:center;font-size:23px;flex:none;position:relative}
+  .ico.saldo-ico{background:#24443a}
+  .ico .clip{position:absolute;right:-6px;bottom:-6px;font-size:13px;background:var(--bg);border-radius:50%;padding:2px}
+  .desc{flex:1;min-width:0}
+  .desc .t{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .desc .s{font-size:14px;color:var(--muted);margin-top:2px}
+  .amt{text-align:right;flex:none}
+  .amt small{display:block;font-size:12px}
+  .amt b{font-size:17px;font-weight:600}
+  .empty{text-align:center;color:var(--muted);padding:60px 30px;line-height:1.5}
+
+  /* Riepilogo */
+  .cards3{display:grid;grid-template-columns:repeat(3,1fr);margin:14px 20px;background:var(--card);border-radius:14px;overflow:hidden}
+  .cards3>div{padding:14px 8px;text-align:center}
+  .cards3>div+div{border-left:1px solid var(--line)}
+  .cards3 small{display:block;color:var(--muted);font-size:13px;margin-bottom:4px}
+  .cards3 b{font-size:17px}
+  .box{background:var(--card);border-radius:14px;padding:16px;margin:14px 20px}
+  .box h3{margin:0 0 12px;font-size:17px}
+  .person{display:flex;align-items:center;gap:12px}
+  .avatar{width:44px;height:44px;border-radius:50%;background:#7a1f35;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+  .bar-row{margin:10px 0}
+  .bar-row .lab{display:flex;justify-content:space-between;font-size:15px;margin-bottom:5px}
+  .bar{height:8px;border-radius:4px;background:var(--card2);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--green);border-radius:4px}
+  .bar-row button{all:unset;display:block;width:100%;cursor:pointer}
+
+  /* Activity */
+  .act{display:flex;gap:14px;padding:12px 20px;align-items:flex-start}
+  .act .ico{width:42px;height:42px;font-size:20px}
+  .act .t{font-size:16px;line-height:1.35}
+  .act .s{font-size:14px;margin-top:3px}
+  .act .w{font-size:13px;color:var(--muted);margin-top:3px}
+  .dot{position:absolute;top:6px;right:calc(50% - 18px);width:9px;height:9px;border-radius:50%;background:var(--orange)}
+
+  /* Print view */
+  .paper{background:#fff;color:#222;margin:14px 12px;border-radius:6px;padding:18px 14px;overflow-x:auto}
+  .paper h2{margin:0;font-size:24px} .paper .sub{font-weight:600;margin:2px 0 14px}
+  .ptable{width:100%;border-collapse:collapse;font-size:14px;min-width:520px}
+  .ptable th,.ptable td{border:1px solid #ddd;padding:8px 9px;text-align:left;vertical-align:top}
+  .ptable thead th{background:#eee}
+  .ptable td.n,.ptable th.n{text-align:right;white-space:nowrap}
+  .ptable .p{color:#1aa37a;font-weight:600} .ptable .m{color:#e8501e;font-weight:600} .ptable .z{color:#999}
+  .ptable tfoot td{background:#f5f5f5;font-weight:700}
+  .printbar{display:flex;gap:10px;padding:0 20px;margin-top:10px}
+  .printbar>*{flex:1}
+
+  /* Bottom nav */
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(27,31,34,.96);
+    border-top:1px solid var(--line);padding-bottom:var(--safe-b);backdrop-filter:blur(10px)}
+  nav.tabs .in{display:flex;max-width:760px;margin:0 auto}
+  nav.tabs button{flex:1;background:none;border:none;padding:8px 0 10px;color:var(--muted);font-size:12px;position:relative}
+  nav.tabs button span{display:block;font-size:21px;margin-bottom:2px}
+  nav.tabs button.on{color:var(--text)}
+  nav.tabs button.on span{filter:none}
+
+  /* FAB */
+  .fabs{position:fixed;right:16px;bottom:calc(var(--safe-b) + var(--nav-h) + 16px);display:flex;flex-direction:column;
+    align-items:flex-end;gap:12px;z-index:4}
+  @media(min-width:800px){.fabs{right:calc(50% - 370px)}}
+  .fab{padding:15px 22px;border:none;border-radius:999px;background:var(--green);color:#fff;font-weight:700;font-size:17px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .fab.white{background:#fff;color:#1b1f22}
+
+  /* Sheet */
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:11;background:var(--bg);max-width:760px;margin:0 auto;
+    border-radius:20px 20px 0 0;padding:10px 20px calc(var(--safe-b) + 20px);max-height:92vh;overflow-y:auto}
+  .sheet-x{position:absolute;top:12px;right:14px;width:34px;height:34px;border-radius:50%;border:none;background:var(--card2);color:var(--muted);font-size:15px}
+  .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+  .sheet h2{margin:0 0 18px;font-size:21px}
+  .seg{display:flex;background:var(--card);border-radius:12px;padding:4px;gap:4px;margin-bottom:14px}
+  .seg button{flex:1;padding:10px 4px;border:none;border-radius:9px;background:none;font-size:14px;color:var(--muted)}
+  .seg button.on{background:var(--card2);color:var(--text);font-weight:600}
+  .cats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .cats button{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:14px}
+  .cats button.on{border-color:var(--green);background:#24443a}
+  .lbl{font-size:13px;color:var(--muted);margin:4px 0 6px}
+  .hint{font-size:14px;color:var(--muted);margin:-4px 0 16px;min-height:18px}
+  .row{display:flex;gap:10px} .row>*{flex:1;min-width:0}
+  .gap{height:10px}
+  .receipt{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:10px;margin-bottom:14px}
+  .receipt img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:#000}
+  .receipt .r-t{flex:1;font-size:14px;color:var(--muted)}
+  .smallbtn{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card2);font-size:14px}
+  .ai-box{background:#24443a;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+
+  /* Gruppi */
+  .back{display:flex;align-items:center;gap:6px;background:none;border:none;color:rgba(255,255,255,.85);font-size:16px;padding:0;margin-bottom:12px}
+  .gtile{width:46px;height:46px;border-radius:12px;background:#2f6b58;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none}
+  .gitem{display:flex;align-items:center;gap:14px;padding:13px 20px;width:100%;background:none;border:none;text-align:left}
+  .gitem:active{background:var(--card)}
+  .gitem .t{font-size:17px;font-weight:600}
+  .gitem .s{font-size:13px;color:var(--muted);margin-top:2px}
+  .emojis{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .emojis button{width:46px;height:46px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:22px}
+  .emojis button.on{border-color:var(--green);background:#24443a}
+  .gpill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--card2);color:var(--muted);margin-left:6px;vertical-align:middle}
+  .newgroup{margin:6px 20px;display:flex;gap:10px}
+  #viewer{position:fixed;inset:0;z-index:30;background:#000;display:flex;align-items:center;justify-content:center}
+  #viewer img{max-width:100%;max-height:100%}
+  #viewer button{position:absolute;top:calc(var(--safe-t) + 14px);right:14px}
+
+  #busy{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff}
+  .spin{width:42px;height:42px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + var(--nav-h) + 90px);
+    background:#000;color:#fff;padding:12px 18px;border-radius:12px;z-index:40;font-size:15px;max-width:90vw;text-align:center}
+
+  @media print{
+    @page{margin:12mm}
+    html,body{background:#fff!important}
+    body *{visibility:hidden}
+    #v-stampa .paper,#v-stampa .paper *{visibility:visible}
+    #v-stampa .paper{position:absolute;left:0;top:0;width:100%;margin:0;padding:0;border-radius:0;overflow:visible}
+    .ptable{min-width:0;font-size:12px}
+    .ptable tr{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">Caricamento…</div>
+
+<!-- LOGIN -->
+<section id="login" class="hidden">
+  <h1>Spese di casa</h1>
+  <p>Accedi con la tua email.</p>
+  <label class="field"><span>Email</span><input id="l-email" type="email" autocomplete="username" inputmode="email"></label>
+  <label class="field"><span>Password</span><input id="l-pass" type="password" autocomplete="current-password"></label>
+  <button class="btn" id="l-go">Accedi</button>
+  <button class="link" id="l-reset">Password dimenticata?</button>
+</section>
+
+<!-- APP -->
+<section id="app" class="hidden">
+  <!-- GRUPPI (pagina generale) -->
+  <div class="view wrap" id="v-gruppi">
+    <header>
+      <div class="top">
+        <h1>Spese di casa</h1>
+        <button class="iconbtn" id="b-menu" aria-label="Impostazioni">⚙︎</button>
+      </div>
+      <div class="lbl" style="color:rgba(255,255,255,.7);margin:18px 0 0">IL VOSTRO BILANCIO</div>
+      <div class="saldo" id="saldo-tot" style="margin-top:4px"></div>
+      <div class="chips">
+        <button class="chip" id="b-pareggia-tutto">Pareggia tutto</button>
+        <button class="chip" id="b-nuovo-gruppo">＋ Nuovo gruppo</button>
+      </div>
+    </header>
+    <main id="glist"></main>
+  </div>
+
+  <!-- DETTAGLIO GRUPPO -->
+  <div class="view wrap hidden" id="v-gruppo">
+    <header>
+      <button class="back" id="b-back">‹ Tutti i gruppi</button>
+      <div class="top">
+        <h1 id="g-nome"></h1>
+        <button class="iconbtn" id="b-gmenu" aria-label="Impostazioni gruppo">⚙︎</button>
+      </div>
+      <div class="saldo" id="saldo"></div>
+      <div class="chips">
+        <button class="chip" id="b-pareggia">Pareggia</button>
+        <select class="chip" id="f-cat"></select>
+      </div>
+    </header>
+    <main id="list"></main>
+  </div>
+
+  <!-- RIEPILOGO -->
+  <div class="view wrap hidden" id="v-riepilogo">
+    <div class="pagehead"><h1>Riepilogo</h1></div>
+    <div style="padding:10px 20px 0"><select class="inp" id="r-scope"></select></div>
+    <div id="riep"></div>
+  </div>
+
+  <!-- ATTIVITA -->
+  <div class="view wrap hidden" id="v-attivita">
+    <div class="pagehead"><h1>Attività recenti</h1></div>
+    <div id="att"></div>
+  </div>
+
+  <!-- STAMPA -->
+  <div class="view wrap hidden" id="v-stampa">
+    <div class="pagehead"><h1>Riepilogo stampabile</h1></div>
+    <div class="printbar"><select class="inp" id="s-scope"></select></div>
+    <div class="printbar">
+      <select class="inp" id="s-mese"></select>
+      <button class="btn" id="s-print" style="flex:0 0 auto;width:auto;padding:12px 22px">Stampa / PDF</button>
+    </div>
+    <div class="paper" id="paper"></div>
+  </div>
+
+  <div class="fabs" id="fabs">
+    <button class="fab white" id="b-scontrino">📷 Scontrino</button>
+    <button class="fab" id="b-add">＋ Aggiungi spesa</button>
+  </div>
+
+  <nav class="tabs"><div class="in">
+    <button data-v="gruppi" class="on"><span>🗂️</span>Gruppi</button>
+    <button data-v="riepilogo"><span>📊</span>Riepilogo</button>
+    <button data-v="attivita"><span>🔔</span>Attività<i class="dot hidden" id="att-dot"></i></button>
+    <button data-v="stampa"><span>🖨️</span>Stampa</button>
+  </div></nav>
+</section>
+
+<input type="file" id="file-scontrino" accept="image/*" class="hidden">
+<input type="file" id="file-allega" accept="image/*" class="hidden">
+<input type="file" id="file-csv" accept=".csv,text/csv" class="hidden">
+
+<div id="sheet-wrap" class="hidden">
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet" id="sheet"></div>
+</div>
+<div id="viewer" class="hidden"><img id="viewer-img" alt="Scontrino"><button class="iconbtn" id="viewer-x">✕</button></div>
+<div id="busy" class="hidden"><div class="spin"></div><div id="busy-t"></div></div>
+<div id="toast" class="hidden"></div>
+
+<script type="module">
+/* =====================================================================
+   CONFIGURAZIONE — l'unica parte da modificare
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDacKsR1y4BVG_zF9uzc5h-B-CWAym9GKE",
+  authDomain: "spese-casa-a56c9.firebaseapp.com",
+  projectId: "spese-casa-a56c9",
+  storageBucket: "spese-casa-a56c9.firebasestorage.app",
+  messagingSenderId: "1007617918732",
+  appId: "1:1007617918732:web:e5e43d1fb70e6c39eaab29"
+};
+// Le due email con cui accedete (in minuscolo) e il nome da mostrare
+const PERSONE = {
+  "attilioriccardi@gmail.com": "Attilio",
+  "elisa.berger@gmail.com":    "Elisa"
+};
+// Modelli Gemini usati per leggere gli scontrini (si prova il primo, poi il successivo)
+const MODELLI_AI = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+/* ===================================================================== */
+
+const FB = "https://www.gstatic.com/firebasejs/13.3.0/";
+const { initializeApp } = await import(FB + "firebase-app.js");
+const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } = await import(FB + "firebase-auth.js");
+const { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, setDoc, updateDoc,
+  deleteDoc, getDoc, doc, onSnapshot, query, orderBy, limit, serverTimestamp, writeBatch } = await import(FB + "firebase-firestore.js");
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+const speseCol = collection(db, "spese");
+const gruppiCol = collection(db, "gruppi");
+const attCol = collection(db, "attivita");
+const scontriniCol = collection(db, "scontrini");
+
+const CATEGORIE = [
+  ["alimentari","🛒","Alimentari"],["ristoranti","🍕","Ristoranti e bar"],["casa","🏠","Casa"],
+  ["bollette","💡","Bollette"],["auto","⛽","Auto e benzina"],["bambini","🧸","Bambini"],
+  ["salute","💊","Salute"],["abbigliamento","👕","Abbigliamento"],["svago","🎉","Svago"],
+  ["regali","🎁","Regali"],["viaggi","✈️","Viaggi"],["giroconto","🔁","Giroconti"],["altro","🧾","Altro"]
+];
+const CAT = Object.fromEntries(CATEGORIE.map(c => [c[0], c]));
+const cat = k => CAT[k] || CAT.altro;
+const EMOJI_GRUPPI = ["🏠","🛒","🏖️","✈️","⛰️","🎄","🚗","👶","🎉","🎓","💼","📦"];
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+const MESI_BREVI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+
+const $ = id => document.getElementById(id);
+const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const eur = c => fmt.format(c / 100);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
+const oggi = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const meseLabel = m => { const [y, mm] = m.split("-"); return `${MESI[+mm - 1]} ${y}`; };
+function parseCents(s) {
+  s = String(s ?? "").trim().replace(/\s|€/g, "");
+  if (!s) return NaN;
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = Number(s);
+  return isFinite(n) ? Math.round(n * 100) : NaN;
+}
+const centsToInput = c => (c / 100).toFixed(2).replace(".", ",");
+function toast(msg, ms = 3000) {
+  const t = $("toast"); t.textContent = msg; t.classList.remove("hidden");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add("hidden"), ms);
+}
+function busy(msg) { $("busy-t").textContent = msg || ""; $("busy").classList.toggle("hidden", !msg); }
+const errMsg = e => e?.code || e?.message || String(e);
+const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+
+let me = null, other = null, spese = [], gruppi = [], attivita = [], unsubs = [];
+let vista = "gruppi", gruppoCorrente = null, filtroCat = "", mostraArchiviati = false;
+let scopeRiep = "", meseRiep = null, scopeStampa = "", meseStampa = null;
+const nome = e => PERSONE[e] || e || "?";
+const gruppo = id => gruppi.find(g => g.id === id);
+const nomeGruppo = id => gruppo(id)?.nome || "Senza gruppo";
+
+/* ---------------- AUTH ---------------- */
+onAuthStateChanged(auth, user => {
+  $("loading").classList.add("hidden");
+  unsubs.forEach(u => u()); unsubs = [];
+  if (!user) { $("app").classList.add("hidden"); $("login").classList.remove("hidden"); return; }
+  const email = (user.email || "").toLowerCase();
+  if (!PERSONE[email]) { toast("Questa email non è autorizzata."); signOut(auth); return; }
+  me = email; other = Object.keys(PERSONE).find(e => e !== me);
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  unsubs.push(onSnapshot(query(gruppiCol, orderBy("creatoIl", "desc")), snap => {
+    gruppi = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (vista === "gruppo" && !gruppo(gruppoCorrente)) vai("gruppi");
+    renderAll();
+  }, err => toast("Errore nel leggere i gruppi: " + err.code)));
+  unsubs.push(onSnapshot(query(speseCol, orderBy("data", "desc")), snap => {
+    spese = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    spese.sort((a, b) => (b.data || "").localeCompare(a.data || "") || ((b.creatoIl?.seconds ?? 9e12) - (a.creatoIl?.seconds ?? 9e12)));
+    renderAll();
+  }, err => toast("Errore nel leggere le spese: " + err.code)));
+  unsubs.push(onSnapshot(query(attCol, orderBy("quando", "desc"), limit(150)), snap => {
+    attivita = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAttivita(); aggiornaPallino();
+  }, err => toast("Errore nel leggere le attività: " + err.code)));
+});
+
+$("l-go").onclick = async () => {
+  const email = $("l-email").value.trim().toLowerCase(), pass = $("l-pass").value;
+  if (!email || !pass) return toast("Inserisci email e password");
+  try { await signInWithEmailAndPassword(auth, email, pass); }
+  catch (e) { toast(e.code === "auth/invalid-credential" ? "Email o password errate" : "Accesso non riuscito: " + e.code); }
+};
+$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-go").click(); });
+$("l-reset").onclick = async () => {
+  const email = $("l-email").value.trim().toLowerCase();
+  if (!email) return toast("Scrivi prima la tua email");
+  try { await sendPasswordResetEmail(auth, email); toast("Ti ho inviato una mail per reimpostare la password"); }
+  catch (e) { toast("Errore: " + e.code); }
+};
+
+/* ---------------- NAVIGAZIONE ---------------- */
+document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => vai(b.dataset.v));
+function vai(v, gid) {
+  if (v === "gruppo") {
+    gruppoCorrente = gid; filtroCat = "";
+    ls.set("ultimo-gruppo", gid);
+    if (vista !== "gruppo") history.pushState({ g: gid }, "");
+  } else if (vista === "gruppo" && history.state?.g) {
+    history.replaceState(null, "");
+  }
+  vista = v;
+  const tab = v === "gruppo" ? "gruppi" : v;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === tab));
+  ["gruppi", "gruppo", "riepilogo", "attivita", "stampa"].forEach(k => $("v-" + k).classList.toggle("hidden", k !== v));
+  $("fabs").classList.toggle("hidden", !(v === "gruppi" || v === "gruppo"));
+  if (v === "attivita") segnaVisto();
+  renderAll();
+  window.scrollTo(0, 0);
+}
+window.addEventListener("popstate", () => { if (vista === "gruppo") { vista = "gruppo-uscita"; vai("gruppi"); } });
+$("b-back").onclick = () => { if (history.state?.g) history.back(); else vai("gruppi"); };
+
+/* ---------------- CALCOLI ---------------- */
+// Effetto di una voce sul saldo di "chi": positivo = gli devono
+const effetto = (x, chi) => x.pagatoDa === chi ? x.dovutoCents : -x.dovutoCents;
+const saldoDi = (lista, chi = me) => lista.reduce((s, x) => s + effetto(x, chi), 0);
+const speseGruppo = gid => spese.filter(x => x.gruppoId === gid);
+const speseScope = gid => gid ? speseGruppo(gid) : spese;
+const mesiDisponibili = (lista = spese) => {
+  const s = new Set(lista.map(x => x.data.slice(0, 7))); s.add(oggi().slice(0, 7));
+  return [...s].sort().reverse();
+};
+const gruppiAttivi = () => gruppi.filter(g => !g.archiviato);
+function gruppoPredefinito() {
+  if (vista === "gruppo" && gruppo(gruppoCorrente)) return gruppoCorrente;
+  const u = ls.get("ultimo-gruppo");
+  if (u && gruppo(u) && !gruppo(u).archiviato) return u;
+  return gruppiAttivi()[0]?.id || gruppi[0]?.id || null;
+}
+
+/* ---------------- RENDER ---------------- */
+function renderAll() {
+  if (!me) return;
+  if (vista === "gruppi") renderGruppi();
+  if (vista === "gruppo") { renderSaldo(); renderCatFilter(); renderLista(); }
+  if (vista === "riepilogo") renderRiepilogo();
+  if (vista === "stampa") renderStampa();
+}
+function testoSaldo(s, vuoto = "Siete in pari 👌") {
+  return s === 0 ? vuoto
+    : s > 0 ? `${esc(nome(other))} ti deve <b class="pos">${eur(s)}</b>`
+            : `Devi a ${esc(nome(other))} <b class="neg">${eur(-s)}</b>`;
+}
+
+/* ---- Pagina generale: elenco gruppi ---- */
+function ultimaData(g) {
+  const l = speseGruppo(g.id);
+  return l.length ? l[0].data : (g.creatoIl?.seconds ? new Date(g.creatoIl.seconds * 1000).toISOString().slice(0, 10) : oggi());
+}
+function renderGruppi() {
+  $("saldo-tot").innerHTML = testoSaldo(saldoDi(spese));
+  if (!gruppi.length) {
+    $("glist").innerHTML = `<div class="empty">Nessun gruppo ancora.<br>Crea un gruppo, per esempio “Spese 2026” o “Vacanze”, e poi aggiungi le spese al suo interno.<div class="gap"></div><button class="btn" id="b-primo" style="max-width:280px;margin:10px auto 0">＋ Crea il primo gruppo</button></div>`;
+    $("b-primo").onclick = () => formGruppo(null);
+    return;
+  }
+  const ordinati = gruppi.map(g => ({ g, d: ultimaData(g), s: saldoDi(speseGruppo(g.id)) }))
+    .sort((a, b) => b.d.localeCompare(a.d));
+  const attivi = ordinati.filter(o => !o.g.archiviato), arch = ordinati.filter(o => o.g.archiviato);
+  const riga = ({ g, d, s }) => {
+    const [y, mm, dd] = d.split("-");
+    const dx = s === 0 ? `<small class="grey">nessun importo</small>`
+      : s > 0 ? `<small class="pos">${esc(nome(other))} ti deve</small><b class="pos">${eur(s)}</b>`
+              : `<small class="neg">devi a ${esc(nome(other))}</small><b class="neg">${eur(-s)}</b>`;
+    const n = speseGruppo(g.id).filter(x => x.tipo !== "saldo").length;
+    return `<button class="gitem" data-g="${g.id}"><div class="gtile">${esc(g.emoji || "🗂️")}</div>
+      <div class="desc"><div class="t">${esc(g.nome)}${g.archiviato ? `<span class="gpill">archiviato</span>` : ""}</div>
+      <div class="s">${n === 1 ? "1 spesa" : n + " spese"} · ultima il ${+dd} ${MESI_BREVI[+mm - 1]} ${y}</div></div><div class="amt">${dx}</div></button>`;
+  };
+  let html = attivi.map(riga).join("");
+  if (arch.length) {
+    html += `<div class="month"><span>Gruppi archiviati (${arch.length})</span><button class="link" id="b-arch" style="padding:0">${mostraArchiviati ? "Nascondi" : "Mostra"}</button></div>`;
+    if (mostraArchiviati) html += arch.map(riga).join("");
+  }
+  $("glist").innerHTML = html;
+  $("b-arch")?.addEventListener("click", () => { mostraArchiviati = !mostraArchiviati; renderGruppi(); });
+}
+$("glist").onclick = e => { const b = e.target.closest(".gitem"); if (b) vai("gruppo", b.dataset.g); };
+$("b-nuovo-gruppo").onclick = () => formGruppo(null);
+
+/* ---- Dettaglio gruppo ---- */
+function renderSaldo() {
+  const g = gruppo(gruppoCorrente); if (!g) return;
+  $("g-nome").textContent = `${g.emoji || ""} ${g.nome}`.trim();
+  $("saldo").innerHTML = testoSaldo(saldoDi(speseGruppo(g.id)));
+}
+function renderCatFilter() {
+  $("f-cat").innerHTML = `<option value="">Tutte le categorie</option>` +
+    CATEGORIE.map(c => `<option value="${c[0]}" ${filtroCat === c[0] ? "selected" : ""}>${c[1]} ${c[2]}</option>`).join("");
+  $("f-cat").classList.toggle("on", !!filtroCat);
+}
+$("f-cat").onchange = e => { filtroCat = e.target.value; renderCatFilter(); renderLista(); };
+
+function rigaSpesa(x) {
+  const [, mm, dd] = x.data.split("-");
+  const io = x.pagatoDa === me;
+  let ico, titolo, sotto, dx;
+  if (x.tipo === "saldo") {
+    ico = `<div class="ico saldo-ico">💸</div>`;
+    titolo = io ? `Hai dato ${eur(x.importoCents)} a ${esc(nome(other))}` : `${esc(nome(other))} ti ha dato ${eur(x.importoCents)}`;
+    sotto = esc(x.descrizione || "Pareggio");
+    dx = "";
+  } else {
+    ico = `<div class="ico">${cat(x.categoria)[1]}${x.scontrinoId ? `<span class="clip">📎</span>` : ""}</div>`;
+    titolo = esc(x.descrizione);
+    sotto = io ? `Hai pagato ${eur(x.importoCents)}` : `${esc(nome(other))} ha pagato ${eur(x.importoCents)}`;
+    dx = x.dovutoCents === 0 ? `<small class="grey">non diviso</small>`
+      : io ? `<small class="pos">hai prestato</small><b class="pos">${eur(x.dovutoCents)}</b>`
+           : `<small class="neg">ti ha prestato</small><b class="neg">${eur(x.dovutoCents)}</b>`;
+  }
+  return `<button class="item" data-id="${x.id}">
+    <div class="date"><small>${MESI_BREVI[+mm - 1]}</small><b>${+dd}</b></div>${ico}
+    <div class="desc"><div class="t">${titolo}</div><div class="s">${sotto}</div></div>
+    <div class="amt">${dx}</div></button>`;
+}
+function renderLista() {
+  let lista = speseGruppo(gruppoCorrente);
+  if (filtroCat) lista = lista.filter(x => x.tipo !== "saldo" && x.categoria === filtroCat);
+  if (!lista.length) {
+    $("list").innerHTML = `<div class="empty">${filtroCat ? "Nessuna spesa in questa categoria." : "Nessuna spesa in questo gruppo.<br>Tocca “Aggiungi spesa” o fotografa uno scontrino."}</div>`;
+    return;
+  }
+  const totMese = {};
+  for (const x of lista) if (x.tipo !== "saldo") { const m = x.data.slice(0, 7); totMese[m] = (totMese[m] || 0) + x.importoCents; }
+  let html = "", meseCorr = "";
+  for (const x of lista) {
+    const m = x.data.slice(0, 7);
+    if (m !== meseCorr) { meseCorr = m; html += `<div class="month"><span>${meseLabel(m)}</span><span>speso ${eur(totMese[m] || 0)}</span></div>`; }
+    html += rigaSpesa(x);
+  }
+  $("list").innerHTML = html;
+}
+$("list").onclick = e => {
+  const b = e.target.closest(".item"); if (!b) return;
+  const x = spese.find(s => s.id === b.dataset.id);
+  if (x) x.tipo === "saldo" ? openSaldo(x) : openForm(x);
+};
+
+/* ---------------- GESTIONE GRUPPI ---------------- */
+function formGruppo(g) {
+  let emoji = g?.emoji || EMOJI_GRUPPI[0];
+  openSheet(`
+    <h2>${g ? "Modifica gruppo" : "Nuovo gruppo"}</h2>
+    <label class="field"><span>Nome del gruppo</span><input id="g-in" maxlength="50" value="${esc(g?.nome || "")}" placeholder="Es. Spese 2026, Vacanze Puglia"></label>
+    <div class="lbl">Icona</div>
+    <div class="emojis" id="g-emo">${EMOJI_GRUPPI.map(e => `<button data-e="${e}">${e}</button>`).join("")}</div>
+    <button class="btn" id="g-save">${g ? "Salva" : "Crea gruppo"}</button>
+  `);
+  const ref = () => document.querySelectorAll("#g-emo button").forEach(b => b.classList.toggle("on", b.dataset.e === emoji));
+  $("g-emo").onclick = e => { const b = e.target.closest("button"); if (b) { emoji = b.dataset.e; ref(); } };
+  ref();
+  if (!g) setTimeout(() => $("g-in")?.focus(), 250);
+  $("g-save").onclick = () => {
+    const n = $("g-in").value.trim();
+    if (!n) return toast("Scrivi un nome");
+    if (g) {
+      updateDoc(doc(gruppiCol, g.id), { nome: n, emoji }).catch(e => toast("Errore: " + errMsg(e)));
+      closeSheet(); toast("Gruppo aggiornato");
+    } else {
+      const r = doc(gruppiCol);
+      setDoc(r, { nome: n, emoji, archiviato: false, creatoDa: me, creatoIl: serverTimestamp() }).catch(e => toast("Errore: " + errMsg(e)));
+      logAtt("nuovo-gruppo", null, { gruppoId: r.id, gruppoNome: n });
+      closeSheet(); if (!gruppo(r.id)) gruppi.unshift({ id: r.id, nome: n, emoji, archiviato: false });
+      vai("gruppo", r.id);
+    }
+  };
+}
+$("b-gmenu").onclick = () => {
+  const g = gruppo(gruppoCorrente); if (!g) return;
+  const lista = speseGruppo(g.id);
+  openSheet(`
+    <h2>${esc(g.nome)}</h2>
+    <p class="grey" style="margin-top:-8px">${lista.filter(x => x.tipo !== "saldo").length} spese · totale ${eur(lista.filter(x => x.tipo !== "saldo").reduce((a, x) => a + x.importoCents, 0))}</p>
+    <button class="btn ghost" id="gm-edit">Rinomina / cambia icona</button><div class="gap"></div>
+    <button class="btn ghost" id="gm-imp">Importa da Splitwise in questo gruppo</button><div class="gap"></div>
+    <button class="btn ghost" id="gm-csv">Esporta il gruppo in CSV</button><div class="gap"></div>
+    <button class="btn ghost" id="gm-arch">${g.archiviato ? "Riporta tra i gruppi attivi" : "Archivia gruppo"}</button><div class="gap"></div>
+    <button class="btn danger" id="gm-del">Elimina gruppo</button>
+  `);
+  $("gm-edit").onclick = () => formGruppo(g);
+  $("gm-imp").onclick = () => { $("file-csv").value = ""; $("file-csv").click(); };
+  $("gm-csv").onclick = () => esportaCSV(lista, g.nome);
+  $("gm-arch").onclick = () => {
+    const s = saldoDi(lista);
+    if (!g.archiviato && s !== 0 && !confirm(`Il gruppo non è in pari (${eur(Math.abs(s))}). Il suo saldo resterà comunque nel bilancio generale. Archiviare?`)) return;
+    updateDoc(doc(gruppiCol, g.id), { archiviato: !g.archiviato }).catch(e => toast("Errore: " + errMsg(e)));
+    closeSheet(); toast(g.archiviato ? "Gruppo riattivato" : "Gruppo archiviato");
+    if (!g.archiviato) vai("gruppi");
+  };
+  $("gm-del").onclick = () => {
+    if (lista.length) return toast("Il gruppo contiene delle spese: eliminale o spostale prima, oppure archivia il gruppo.", 5000);
+    if (!confirm(`Eliminare il gruppo “${g.nome}”?`)) return;
+    deleteDoc(doc(gruppiCol, g.id)).catch(e => toast("Errore: " + errMsg(e)));
+    closeSheet(); vai("gruppi"); toast("Gruppo eliminato");
+  };
+};
+
+/* ---------------- RIEPILOGO ---------------- */
+function opzioniScope(sel) {
+  return `<option value="">Tutti i gruppi</option>` + gruppi.map(g => `<option value="${g.id}" ${sel === g.id ? "selected" : ""}>${esc(g.emoji || "")} ${esc(g.nome)}${g.archiviato ? " (archiviato)" : ""}</option>`).join("");
+}
+function renderRiepilogo() {
+  if (scopeRiep && !gruppo(scopeRiep)) scopeRiep = "";
+  $("r-scope").innerHTML = opzioniScope(scopeRiep);
+  const base = speseScope(scopeRiep);
+  const s = saldoDi(base);
+  const mesi = mesiDisponibili(base);
+  if (!meseRiep || !mesi.includes(meseRiep)) meseRiep = mesi[0];
+  const delMese = base.filter(x => x.tipo !== "saldo" && x.data.startsWith(meseRiep));
+  let tot = 0, io = 0, lui = 0; const perCat = {};
+  for (const x of delMese) {
+    tot += x.importoCents;
+    const caricoPagatore = x.importoCents - x.dovutoCents;
+    if (x.pagatoDa === me) { io += caricoPagatore; lui += x.dovutoCents; } else { lui += caricoPagatore; io += x.dovutoCents; }
+    perCat[x.categoria] = (perCat[x.categoria] || 0) + x.importoCents;
+  }
+  const max = Math.max(1, ...Object.values(perCat));
+  const iniz = (nome(other)[0] || "?").toUpperCase();
+  const ultimi = [];
+  for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+    ultimi.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); }
+  const totM = Object.fromEntries(ultimi.map(m => [m, base.filter(x => x.tipo !== "saldo" && x.data.startsWith(m)).reduce((a, x) => a + x.importoCents, 0)]));
+  const maxM = Math.max(1, ...Object.values(totM));
+  const perGruppo = !scopeRiep ? gruppi.map(g => ({ g, s: saldoDi(speseGruppo(g.id)) })).filter(o => o.s !== 0) : [];
+
+  $("riep").innerHTML = `
+    <div class="cards3">
+      <div><small>bilancio totale</small><b class="${s >= 0 ? "pos" : "neg"}">${s >= 0 ? "+" : "−"}${eur(Math.abs(s))}</b></div>
+      <div><small>devi dare</small><b class="${s < 0 ? "neg" : ""}">${eur(s < 0 ? -s : 0)}</b></div>
+      <div><small>ti è dovuto</small><b class="${s > 0 ? "pos" : ""}">${eur(s > 0 ? s : 0)}</b></div>
+    </div>
+    <div class="box"><div class="person"><div class="avatar">${esc(iniz)}</div>
+      <div><div style="font-size:18px">${esc(nome(other))}</div>
+      <div class="${s > 0 ? "pos" : s < 0 ? "neg" : "grey"}">${s > 0 ? `ti deve <b>${eur(s)}</b>` : s < 0 ? `devi <b>${eur(-s)}</b>` : "siete in pari"}</div></div></div>
+      ${perGruppo.length ? `<div style="margin:12px 0 0 56px;font-size:14px">${perGruppo.map(o => `<div class="grey" style="padding:2px 0">${o.s > 0 ? "ti deve" : "devi"} <span class="${o.s > 0 ? "pos" : "neg"}">${eur(Math.abs(o.s))}</span> per “${esc(o.g.nome)}”</div>`).join("")}</div>` : ""}
+      ${s !== 0 ? `<div class="gap"></div><button class="btn" id="r-pareggia">Pareggia</button>` : ""}
+    </div>
+    <div class="box">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px">
+        <h3 style="margin:0">Spese del mese</h3>
+        <select class="inp" id="r-mese" style="width:auto;padding:8px 10px;font-size:15px">${mesi.map(m => `<option value="${m}" ${m === meseRiep ? "selected" : ""}>${meseLabel(m)}</option>`).join("")}</select>
+      </div>
+      <div style="font-size:26px;font-weight:700;margin:6px 0 2px">${eur(tot)}</div>
+      <div class="grey" style="font-size:14px">a carico tuo ${eur(io)} · di ${esc(nome(other))} ${eur(lui)}</div>
+      <div class="gap"></div>
+      ${Object.keys(perCat).length ? Object.entries(perCat).sort((a, b) => b[1] - a[1]).map(([c, v]) => `
+        <div class="bar-row"><div class="lab"><span>${cat(c)[1]} ${cat(c)[2]}</span><span>${eur(v)} <span class="grey">${Math.round(v * 100 / tot)}%</span></span></div>
+          <div class="bar"><i style="width:${(v / max * 100).toFixed(1)}%"></i></div></div>`).join("")
+        : `<div class="grey">Nessuna spesa in questo mese.</div>`}
+    </div>
+    <div class="box"><h3>Ultimi 6 mesi</h3>
+      ${ultimi.slice().reverse().map(m => `<div class="bar-row"><div class="lab"><span style="text-transform:capitalize">${meseLabel(m)}</span><span>${eur(totM[m])}</span></div>
+        <div class="bar"><i style="width:${(totM[m] / maxM * 100).toFixed(1)}%"></i></div></div>`).join("")}
+    </div>`;
+  $("r-mese").onchange = e => { meseRiep = e.target.value; renderRiepilogo(); };
+  $("r-pareggia")?.addEventListener("click", () => scopeRiep ? pareggiaGruppo(scopeRiep) : pareggiaTutto());
+}
+$("r-scope").onchange = e => { scopeRiep = e.target.value; meseRiep = null; renderRiepilogo(); };
+
+/* ---------------- ATTIVITA ---------------- */
+const VERBI_TU = { aggiunta: "Hai aggiunto", modifica: "Hai modificato", eliminazione: "Hai eliminato", pareggio: "Hai registrato un pareggio", import: "Hai importato", "nuovo-gruppo": "Hai creato il gruppo" };
+const VERBI = { aggiunta: "ha aggiunto", modifica: "ha modificato", eliminazione: "ha eliminato", pareggio: "ha registrato un pareggio", import: "ha importato", "nuovo-gruppo": "ha creato il gruppo" };
+function quandoTesto(ts) {
+  if (!ts?.seconds) return "adesso";
+  const d = new Date(ts.seconds * 1000), diff = (Date.now() - d) / 1000;
+  const rtf = new Intl.RelativeTimeFormat("it", { numeric: "auto" });
+  if (diff < 60) return "adesso";
+  if (diff < 3600) return rtf.format(-Math.floor(diff / 60), "minute");
+  if (diff < 86400) return rtf.format(-Math.floor(diff / 3600), "hour");
+  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined })
+    + ", " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+function renderAttivita() {
+  if (!attivita.length) { $("att").innerHTML = `<div class="empty">Ancora nessuna attività.</div>`; return; }
+  $("att").innerHTML = attivita.map(a => {
+    const tu = a.chi === me;
+    const chi = tu ? "" : `<b>${esc(nome(a.chi))}</b> `;
+    const verbo = tu ? `<b>${VERBI_TU[a.azione] || a.azione}</b>` : VERBI[a.azione] || a.azione;
+    const nomeG = gruppo(a.gruppoId)?.nome || a.gruppoNome;
+    const inG = nomeG ? ` in “${esc(nomeG)}”` : "";
+    let t, s = "", ico;
+    if (a.azione === "nuovo-gruppo") { t = `${chi}${verbo} “${esc(nomeG || "")}”`; ico = "🗂️"; }
+    else if (a.azione === "import") { t = `${chi}${verbo} ${a.n} voci da Splitwise${inG}`; ico = "📥"; }
+    else if (a.azione === "pareggio" || a.tipo === "saldo") {
+      ico = "💸";
+      t = a.azione === "pareggio" ? `${chi}${verbo}${inG}` : `${chi}${verbo} un pareggio${inG}`;
+      s = `<span class="grey">${a.pagatoDa === me ? `Hai dato ${eur(a.importoCents)} a ${esc(nome(other))}` : `${esc(nome(other))} ti ha dato ${eur(a.importoCents)}`}</span>`;
+    } else {
+      ico = cat(a.categoria)[1];
+      t = `${chi}${verbo} “${esc(a.descrizione)}”${inG}`;
+      if (a.azione === "eliminazione") s = `<span class="grey">${eur(a.importoCents)}</span>`;
+      else if (a.dovutoCents === 0) s = `<span class="grey">${eur(a.importoCents)} · non divisa</span>`;
+      else s = a.pagatoDa === me ? `<span class="pos">Ti deve ${eur(a.dovutoCents)}</span>` : `<span class="neg">Devi ${eur(a.dovutoCents)}</span>`;
+    }
+    return `<div class="act"><div class="ico">${ico}</div><div style="flex:1;min-width:0">
+      <div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ""}<div class="w">${quandoTesto(a.quando)}</div></div></div>`;
+  }).join("");
+}
+function segnaVisto() { ls.set("att-visto-" + me, String(Date.now() / 1000)); aggiornaPallino(); }
+function aggiornaPallino() {
+  if (vista === "attivita") ls.set("att-visto-" + me, String(Date.now() / 1000));
+  const v = +ls.get("att-visto-" + me) || 0;
+  $("att-dot").classList.toggle("hidden", !attivita.some(a => a.chi !== me && (a.quando?.seconds || 0) > v));
+}
+function logAtt(azione, x, extra = {}) {
+  const gid = extra.gruppoId || x?.gruppoId || "";
+  const rec = { azione, chi: me, quando: serverTimestamp(), descrizione: x?.descrizione || "", importoCents: x?.importoCents || 0,
+    dovutoCents: x?.dovutoCents || 0, pagatoDa: x?.pagatoDa || "", tipo: x?.tipo || "spesa", categoria: x?.categoria || "",
+    gruppoId: gid, gruppoNome: gid ? (gruppo(gid)?.nome || "") : "", ...extra };
+  setDoc(doc(attCol), rec).catch(() => {});
+}
+
+/* ---------------- STAMPA ---------------- */
+function renderStampa() {
+  if (scopeStampa && !gruppo(scopeStampa)) scopeStampa = "";
+  $("s-scope").innerHTML = opzioniScope(scopeStampa);
+  const base = speseScope(scopeStampa);
+  const mesi = mesiDisponibili(base);
+  if (!meseStampa || !mesi.includes(meseStampa)) meseStampa = mesi[0];
+  $("s-mese").innerHTML = mesi.map(m => `<option value="${m}" ${m === meseStampa ? "selected" : ""}>${meseLabel(m)}</option>`).join("");
+  const [A, B] = Object.keys(PERSONE);
+  const inizio = meseStampa + "-01";
+  const prima = base.filter(x => x.data < inizio);
+  const righe = base.filter(x => x.data.startsWith(meseStampa)).slice().reverse();
+  const sA0 = saldoDi(prima, A), sA1 = saldoDi(prima.concat(righe), A);
+  const cella = v => v === 0 ? `<td class="n z">${eur(0)}</td>` : `<td class="n ${v > 0 ? "p" : "m"}">${v < 0 ? "−" : ""}${eur(Math.abs(v))}</td>`;
+  const stato = (v, fin) => v === 0 ? `<span class="z">in pari</span>` : v > 0 ? `<span class="p">${fin ? "deve" : "doveva"} ricevere<br>${eur(v)}</span>` : `<span class="m">${fin ? "deve" : "doveva"} pagare<br>${eur(-v)}</span>`;
+  const [y, mm] = meseStampa.split("-");
+  const ultimoGiorno = new Date(+y, +mm, 0).getDate();
+  const titolo = scopeStampa ? nomeGruppo(scopeStampa) : "Spese di casa · tutti i gruppi";
+  $("paper").innerHTML = `
+    <h2>${esc(titolo)}</h2><div class="sub" style="text-transform:capitalize">${meseLabel(meseStampa)}</div>
+    <table class="ptable">
+      <thead><tr><th colspan="3">Bilancio dall'inizio al ${new Date(+y, +mm - 1, 1).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}</th>
+        <th class="n">${esc(nome(A))}<br>${stato(sA0)}</th><th class="n">${esc(nome(B))}<br>${stato(-sA0)}</th></tr></thead>
+      <tbody>${righe.length ? righe.map(x => {
+        const [, m2, d2] = x.data.split("-");
+        const extra = [x.tipo === "saldo" ? "" : cat(x.categoria)[2], scopeStampa ? "" : nomeGruppo(x.gruppoId), x.tipo !== "saldo" && x.dovutoCents === 0 ? "non divisa" : ""].filter(Boolean).join(" · ");
+        const desc = x.tipo === "saldo" ? `💸 Pareggio: ${esc(nome(x.pagatoDa))} → ${esc(nome(x.pagatoDa === A ? B : A))}` : esc(x.descrizione);
+        return `<tr><td style="white-space:nowrap">${d2} ${MESI_BREVI[+m2 - 1]}</td><td>${desc}${extra ? ` <span class="z">· ${esc(extra)}</span>` : ""}</td><td class="n">${eur(x.importoCents)}</td>${cella(effetto(x, A))}${cella(effetto(x, B))}</tr>`;
+      }).join("") : `<tr><td colspan="5" class="z">Nessuna spesa in questo mese.</td></tr>`}</tbody>
+      <tfoot><tr><td colspan="3">Bilancio al ${ultimoGiorno} ${MESI[+mm - 1]} ${y}</td>
+        <td class="n">${stato(sA1, true)}</td><td class="n">${stato(-sA1, true)}</td></tr></tfoot>
+    </table>
+    <div class="z" style="font-size:12px;margin-top:10px">Totale spese del mese: ${eur(righe.filter(x => x.tipo !== "saldo").reduce((a, x) => a + x.importoCents, 0))}</div>`;
+}
+$("s-scope").onchange = e => { scopeStampa = e.target.value; meseStampa = null; renderStampa(); };
+$("s-mese").onchange = e => { meseStampa = e.target.value; renderStampa(); };
+$("s-print").onclick = () => window.print();
+
+/* ---------------- SHEET ---------------- */
+function openSheet(html) {
+  $("sheet").innerHTML = `<div class="grab"></div><button class="sheet-x" id="sheet-x" aria-label="Chiudi">✕</button>` + html;
+  $("sheet-x").onclick = closeSheet; $("sheet-wrap").classList.remove("hidden");
+}
+function closeSheet() { $("sheet-wrap").classList.add("hidden"); $("sheet").innerHTML = ""; }
+$("backdrop").onclick = closeSheet;
+$("viewer-x").onclick = () => $("viewer").classList.add("hidden");
+function mostraImmagine(src) { $("viewer-img").src = src; $("viewer").classList.remove("hidden"); }
+
+/* ---------------- IMMAGINI ---------------- */
+function comprimi(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let lato = 1600, q = 0.75, out;
+      do {
+        const k = Math.min(1, lato / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL("image/jpeg", q);
+        lato -= 200; q = Math.max(0.5, q - 0.05);
+      } while (out.length > 700000 && lato > 600);
+      res(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Immagine non leggibile")); };
+    img.src = url;
+  });
+}
+
+/* ---------------- LETTURA SCONTRINO (Gemini) ---------------- */
+let aiMod = null;
+async function leggiScontrino(dataUrl) {
+  if (!aiMod) {
+    const m = await import(FB + "firebase-ai.js");
+    aiMod = { m, ai: m.getAI(fbApp, { backend: new m.GoogleAIBackend() }) };
+  }
+  const prompt = `Questa è la foto di uno scontrino o di una ricevuta italiana. Estrai i dati e rispondi SOLO con un oggetto JSON:
+{"descrizione": string, "totale": number, "data": string|null, "categoria": string}
+- descrizione: breve, max 40 caratteri, del tipo "Spesa Ipercoop", "Farmacia Comunale", "Benzina Q8", usando il nome del negozio.
+- totale: l'importo TOTALE effettivamente pagato (cerca TOTALE, TOTALE COMPLESSIVO, IMPORTO PAGATO), in euro con il punto come separatore decimale.
+- data: la data dello scontrino nel formato YYYY-MM-DD, oppure null se non leggibile.
+- categoria: una sola tra ${CATEGORIE.map(c => c[0]).filter(c => c !== "giroconto").join(", ")}.`;
+  let ultimoErr;
+  for (const nomeModello of MODELLI_AI) {
+    try {
+      const model = aiMod.m.getGenerativeModel(aiMod.ai, { model: nomeModello, generationConfig: { responseMimeType: "application/json" } });
+      const r = await model.generateContent([prompt, { inlineData: { data: dataUrl.split(",")[1], mimeType: "image/jpeg" } }]);
+      const testo = r.response.text().replace(/```json|```/g, "").trim();
+      const j = JSON.parse(testo.slice(testo.indexOf("{"), testo.lastIndexOf("}") + 1));
+      return {
+        descrizione: String(j.descrizione || "").slice(0, 80),
+        importoCents: typeof j.totale === "number" ? Math.round(j.totale * 100) : parseCents(j.totale),
+        data: /^\d{4}-\d{2}-\d{2}$/.test(j.data || "") ? j.data : null,
+        categoria: CAT[j.categoria] ? j.categoria : "altro"
+      };
+    } catch (e) { ultimoErr = e; }
+  }
+  throw ultimoErr;
+}
+
+const servonoGruppi = () => { if (gruppi.length) return true; toast("Crea prima un gruppo (es. “Spese 2026”)"); formGruppo(null); return false; };
+$("b-scontrino").onclick = () => { if (!servonoGruppi()) return; $("file-scontrino").value = ""; $("file-scontrino").click(); };
+$("file-scontrino").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  let img;
+  try { busy("Preparo la foto…"); img = await comprimi(f); }
+  catch (err) { busy(); return toast("Non riesco ad aprire la foto"); }
+  let letto = null, errore = null;
+  try { busy("Leggo lo scontrino…"); letto = await leggiScontrino(img); }
+  catch (err) { errore = err; console.error(err); }
+  busy();
+  openForm(null, { scontrinoData: img, letto, errore });
+};
+
+/* ---------------- FORM SPESA ---------------- */
+function openForm(x, opz = {}) {
+  const L = opz.letto || {};
+  const st = {
+    gruppoId: x?.gruppoId || gruppoPredefinito(),
+    pagatoDa: x?.pagatoDa || me,
+    categoria: x?.categoria || L.categoria || "alimentari",
+    divisione: x?.divisione || "meta",
+    scontrinoId: x?.scontrinoId || null,
+    scontrinoData: opz.scontrinoData || null,
+    rimuoviScontrino: false
+  };
+  const descr = x?.descrizione ?? L.descrizione ?? "";
+  const imp = x ? centsToInput(x.importoCents) : (L.importoCents > 0 ? centsToInput(L.importoCents) : "");
+  const data = x?.data || L.data || oggi();
+  const aiBox = opz.scontrinoData
+    ? (opz.letto ? `<div class="ai-box">✨ Ho letto lo scontrino: controlla i dati e scegli come dividere.</div>`
+                 : `<div class="ai-box" style="background:#4a3326">Non sono riuscito a leggere lo scontrino${opz.errore ? ` (${esc(errMsg(opz.errore)).slice(0, 80)})` : ""}. La foto è allegata: inserisci i dati a mano.</div>`)
+    : "";
+  const opzGruppi = gruppi.filter(g => !g.archiviato || g.id === st.gruppoId)
+    .map(g => `<option value="${g.id}" ${g.id === st.gruppoId ? "selected" : ""}>${esc(g.emoji || "")} ${esc(g.nome)}</option>`).join("");
+
+  openSheet(`
+    <h2>${x ? "Modifica spesa" : "Nuova spesa"}</h2>
+    ${aiBox}
+    <label class="field"><span>Gruppo</span><select id="f-gr">${opzGruppi}</select></label>
+    <label class="field"><span>Descrizione</span><input id="f-desc" maxlength="80" value="${esc(descr)}" placeholder="Es. Spesa Ipercoop"></label>
+    <div class="row">
+      <label class="field"><span>Importo (€)</span><input id="f-imp" inputmode="decimal" value="${imp}" placeholder="0,00"></label>
+      <label class="field"><span>Data</span><input id="f-data" type="date" value="${data}"></label>
+    </div>
+    <div class="lbl">Categoria</div>
+    <div class="cats" id="f-cats">${CATEGORIE.map(c => `<button data-c="${c[0]}">${c[1]} ${c[2]}</button>`).join("")}</div>
+    <div class="lbl">Chi ha pagato</div>
+    <div class="seg" id="f-chi">
+      <button data-v="${esc(me)}">Io</button><button data-v="${esc(other)}">${esc(nome(other))}</button>
+    </div>
+    <div class="lbl">Come si divide</div>
+    <div class="seg" id="f-div">
+      <button data-v="meta">A metà</button><button data-v="tutto">Tutto all'altro</button>
+      <button data-v="custom">Altro</button><button data-v="nulla">Non dividere</button>
+    </div>
+    <label class="field hidden" id="f-custom-w"><span id="f-custom-l"></span><input id="f-custom" inputmode="decimal" value="${x?.divisione === "custom" ? centsToInput(x.dovutoCents) : ""}" placeholder="0,00"></label>
+    <div class="hint" id="f-hint"></div>
+    <div class="lbl">Scontrino</div>
+    <div class="receipt" id="f-rec"></div>
+    <button class="btn" id="f-save">Salva</button>
+    ${x ? `<div class="gap"></div><button class="btn danger" id="f-del">Elimina</button>` : ""}
+  `);
+
+  const non = () => st.pagatoDa === me ? other : me;
+  const calcDovuto = () => {
+    const i = parseCents($("f-imp").value);
+    if (isNaN(i)) return NaN;
+    if (st.divisione === "meta") return Math.floor(i / 2);
+    if (st.divisione === "tutto") return i;
+    if (st.divisione === "nulla") return 0;
+    return parseCents($("f-custom").value);
+  };
+  const renderRec = () => {
+    const ha = st.scontrinoData || (st.scontrinoId && !st.rimuoviScontrino);
+    $("f-rec").innerHTML = ha
+      ? `${st.scontrinoData ? `<img src="${st.scontrinoData}">` : `<div class="ico">📎</div>`}
+         <div class="r-t">Scontrino allegato</div>
+         <button class="smallbtn" id="f-rec-view">Vedi</button><button class="smallbtn" id="f-rec-del">✕</button>`
+      : `<div class="r-t">Nessuno scontrino</div><button class="smallbtn" id="f-rec-add">📎 Allega foto</button>`;
+    $("f-rec-add")?.addEventListener("click", () => { $("file-allega").value = ""; $("file-allega").click(); });
+    $("f-rec-del")?.addEventListener("click", () => { st.scontrinoData = null; if (st.scontrinoId) st.rimuoviScontrino = true; renderRec(); });
+    $("f-rec-view")?.addEventListener("click", async () => {
+      if (st.scontrinoData) return mostraImmagine(st.scontrinoData);
+      try { busy("Apro lo scontrino…"); const d = await getDoc(doc(scontriniCol, st.scontrinoId)); busy();
+        d.exists() ? mostraImmagine(d.data().img) : toast("Scontrino non trovato"); }
+      catch (e) { busy(); toast("Errore: " + errMsg(e)); }
+    });
+  };
+  $("file-allega").onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { busy("Preparo la foto…"); st.scontrinoData = await comprimi(f); busy(); renderRec(); }
+    catch { busy(); toast("Non riesco ad aprire la foto"); }
+  };
+  const refresh = () => {
+    document.querySelectorAll("#f-cats button").forEach(b => b.classList.toggle("on", b.dataset.c === st.categoria));
+    document.querySelectorAll("#f-chi button").forEach(b => b.classList.toggle("on", b.dataset.v === st.pagatoDa));
+    document.querySelectorAll("#f-div button").forEach(b => b.classList.toggle("on", b.dataset.v === st.divisione));
+    $("f-custom-w").classList.toggle("hidden", st.divisione !== "custom");
+    $("f-custom-l").textContent = `Quanto deve restituire ${non() === me ? "tu" : nome(non())} (€)`;
+    const d = calcDovuto();
+    $("f-hint").textContent = isNaN(d) ? "" : d === 0 ? "Spesa registrata ma non divisa."
+      : non() === me ? `Tu dovrai ${eur(d)} a ${nome(st.pagatoDa)}.` : `${nome(non())} ti dovrà ${eur(d)}.`;
+  };
+  $("f-gr").onchange = e => { st.gruppoId = e.target.value; };
+  $("f-cats").onclick = e => { const b = e.target.closest("button"); if (b) { st.categoria = b.dataset.c; refresh(); } };
+  $("f-chi").onclick = e => { const b = e.target.closest("button"); if (b) { st.pagatoDa = b.dataset.v; refresh(); } };
+  $("f-div").onclick = e => { const b = e.target.closest("button"); if (b) { st.divisione = b.dataset.v; refresh(); } };
+  $("f-imp").oninput = refresh; $("f-custom").oninput = refresh;
+  refresh(); renderRec();
+  if (!x && !opz.scontrinoData) setTimeout(() => $("f-desc")?.focus(), 250);
+
+  $("f-save").onclick = () => {
+    const descrizione = $("f-desc").value.trim();
+    const importoCents = parseCents($("f-imp").value);
+    const dataV = $("f-data").value;
+    const dovutoCents = calcDovuto();
+    if (!st.gruppoId) return toast("Scegli un gruppo");
+    if (!descrizione) return toast("Scrivi una descrizione");
+    if (!(importoCents > 0)) return toast("Importo non valido");
+    if (!dataV) return toast("Scegli una data");
+    if (isNaN(dovutoCents) || dovutoCents < 0 || dovutoCents > importoCents) return toast("La quota da restituire non è valida");
+
+    let scontrinoId = st.rimuoviScontrino ? null : st.scontrinoId;
+    const batch = writeBatch(db);
+    if (st.scontrinoData) {
+      if (st.scontrinoId) batch.delete(doc(scontriniCol, st.scontrinoId));
+      const ref = doc(scontriniCol); scontrinoId = ref.id;
+      batch.set(ref, { img: st.scontrinoData, caricatoDa: me, caricatoIl: serverTimestamp() });
+    } else if (st.rimuoviScontrino && st.scontrinoId) batch.delete(doc(scontriniCol, st.scontrinoId));
+
+    const rec = { tipo: "spesa", gruppoId: st.gruppoId, descrizione, importoCents, dovutoCents, data: dataV, categoria: st.categoria,
+                  pagatoDa: st.pagatoDa, divisione: st.divisione, scontrinoId };
+    if (x) batch.update(doc(speseCol, x.id), { ...rec, modificatoDa: me, modificatoIl: serverTimestamp() });
+    else batch.set(doc(speseCol), { ...rec, creatoDa: me, creatoIl: serverTimestamp() });
+    batch.commit().catch(e => toast("Errore nel salvataggio: " + errMsg(e)));
+    logAtt(x ? "modifica" : "aggiunta", rec);
+    ls.set("ultimo-gruppo", st.gruppoId);
+    closeSheet();
+    toast((navigator.onLine ? "Salvato" : "Salvato: verrà sincronizzato appena torna la rete") +
+      (vista !== "gruppo" || st.gruppoId !== gruppoCorrente ? ` in “${nomeGruppo(st.gruppoId)}”` : ""));
+  };
+  if (x) $("f-del").onclick = () => elimina(x);
+}
+
+function elimina(x) {
+  if (!confirm("Eliminare definitivamente questa voce?")) return;
+  const batch = writeBatch(db);
+  batch.delete(doc(speseCol, x.id));
+  if (x.scontrinoId) batch.delete(doc(scontriniCol, x.scontrinoId));
+  batch.commit().catch(e => toast("Errore: " + errMsg(e)));
+  logAtt("eliminazione", x);
+  closeSheet(); toast("Eliminata");
+}
+
+/* ---------------- PAREGGIA ---------------- */
+function recPareggio(gid, cents, paga, data, nota) {
+  return { tipo: "saldo", gruppoId: gid, descrizione: nota || "Pareggio", importoCents: cents, dovutoCents: cents,
+    data, categoria: "altro", pagatoDa: paga, divisione: "tutto", creatoDa: me, creatoIl: serverTimestamp() };
+}
+function pareggiaGruppo(gid) {
+  const s = saldoDi(speseGruppo(gid));
+  if (s === 0) return toast("Questo gruppo è già in pari");
+  const paga = s > 0 ? other : me;
+  openSheet(`
+    <h2>Pareggia “${esc(nomeGruppo(gid))}”</h2>
+    <p class="grey" style="margin-top:-8px">${paga === me ? `Registra che hai dato i soldi a ${esc(nome(other))}.` : `Registra che ${esc(nome(other))} ti ha dato i soldi.`}</p>
+    <label class="field"><span>Importo (€)</span><input id="p-imp" inputmode="decimal" value="${centsToInput(Math.abs(s))}"></label>
+    <label class="field"><span>Data</span><input id="p-data" type="date" value="${oggi()}"></label>
+    <label class="field"><span>Nota (facoltativa)</span><input id="p-nota" maxlength="60" placeholder="Es. bonifico, contanti"></label>
+    <button class="btn" id="p-save">Registra pagamento</button>
+  `);
+  $("p-save").onclick = () => {
+    const c = parseCents($("p-imp").value);
+    if (!(c > 0)) return toast("Importo non valido");
+    const rec = recPareggio(gid, c, paga, $("p-data").value || oggi(), $("p-nota").value.trim());
+    setDoc(doc(speseCol), rec).catch(e => toast("Errore: " + errMsg(e)));
+    logAtt("pareggio", rec);
+    closeSheet(); toast("Pagamento registrato");
+  };
+}
+function pareggiaTutto() {
+  const aperti = gruppi.map(g => ({ g, s: saldoDi(speseGruppo(g.id)) })).filter(o => o.s !== 0);
+  const tot = saldoDi(spese);
+  if (!aperti.length) return toast("Siete già in pari su tutti i gruppi");
+  openSheet(`
+    <h2>Pareggia tutto</h2>
+    <p class="grey" style="margin-top:-8px">${tot === 0 ? "Nel complesso siete in pari: i gruppi si compensano tra loro." : tot > 0 ? `${esc(nome(other))} ti dà <b class="pos">${eur(tot)}</b> in totale.` : `Dai <b class="neg">${eur(-tot)}</b> a ${esc(nome(other))} in totale.`}
+    Registro un pareggio in ciascun gruppo:</p>
+    <div class="box" style="margin:0 0 16px">${aperti.map(o => `<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${esc(o.g.emoji || "")} ${esc(o.g.nome)}</span><span class="${o.s > 0 ? "pos" : "neg"}">${o.s > 0 ? "+" : "−"}${eur(Math.abs(o.s))}</span></div>`).join("")}</div>
+    <label class="field"><span>Data</span><input id="p-data" type="date" value="${oggi()}"></label>
+    <button class="btn" id="p-save">Pareggia tutti i gruppi</button>
+  `);
+  $("p-save").onclick = () => {
+    const data = $("p-data").value || oggi();
+    const batch = writeBatch(db);
+    for (const o of aperti) {
+      const rec = recPareggio(o.g.id, Math.abs(o.s), o.s > 0 ? other : me, data, "Pareggio generale");
+      batch.set(doc(speseCol), rec);
+      logAtt("pareggio", rec);
+    }
+    batch.commit().catch(e => toast("Errore: " + errMsg(e)));
+    closeSheet(); toast("Tutti i gruppi sono in pari");
+  };
+}
+$("b-pareggia").onclick = () => pareggiaGruppo(gruppoCorrente);
+$("b-pareggia-tutto").onclick = pareggiaTutto;
+function openSaldo(x) {
+  openSheet(`
+    <h2>Pareggio del ${x.data.split("-").reverse().join("/")}</h2>
+    <p class="grey">${x.pagatoDa === me ? "Hai dato" : esc(nome(other)) + " ti ha dato"} ${eur(x.importoCents)}${x.descrizione && x.descrizione !== "Pareggio" ? ` · ${esc(x.descrizione)}` : ""}.</p>
+    <button class="btn danger" id="s-del">Elimina pareggio</button>
+  `);
+  $("s-del").onclick = () => elimina(x);
+}
+
+/* ---------------- MENU GENERALE ---------------- */
+function esportaCSV(lista, nomeFile) {
+  const righe = [["Data","Gruppo","Tipo","Descrizione","Categoria","Pagato da","Importo","Quota da restituire"]];
+  for (const x of [...lista].reverse())
+    righe.push([x.data, nomeGruppo(x.gruppoId), x.tipo, x.descrizione, cat(x.categoria)[2], nome(x.pagatoDa), centsToInput(x.importoCents), centsToInput(x.dovutoCents)]);
+  const csv = "﻿" + righe.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `${nomeFile.replace(/[^\w\- ]+/g, "").trim() || "spese"}-${oggi()}.csv`; a.click();
+}
+$("b-menu").onclick = () => {
+  openSheet(`
+    <h2>Impostazioni</h2>
+    <p class="grey" style="margin-top:-8px">Collegato come ${esc(nome(me))} (${esc(me)})</p>
+    <button class="btn ghost" id="m-csv">Esporta tutte le spese in CSV</button><div class="gap"></div>
+    <button class="btn danger" id="m-out">Esci</button>
+    <p class="grey" style="font-size:14px">Per importare da Splitwise apri un gruppo e usa il suo ⚙︎.</p>
+  `);
+  $("m-out").onclick = () => { closeSheet(); signOut(auth); };
+  $("m-csv").onclick = () => esportaCSV(spese, "spese-casa");
+};
+
+/* ---------------- IMPORT SPLITWISE (nel gruppo aperto) ---------------- */
+function parseCSV(t) {
+  const rows = []; let row = [], f = "", q = false;
+  t = t.replace(/^﻿/, "");
+  const first = t.split("\n")[0];
+  const sep = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ";" : ",";
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === sep) { row.push(f); f = ""; }
+    else if (c === "\n") { row.push(f); rows.push(row); row = []; f = ""; }
+    else if (c !== "\r") f += c;
+  }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+function catDaSplitwise(c, d) {
+  const s = (c + " " + d).toLowerCase();
+  const reg = [
+    [/giroconto|trasfer/, "giroconto"], [/aliment|grocer|spesa|supermerc|panett|macell|coop|conad|esselunga|lidl|carrefour/, "alimentari"],
+    [/ristor|dining|pizz|\bbar\b|cena|pranzo|vino|liquor/, "ristoranti"], [/elettric|\bgas\b|acqua|water|\btv\b|telefon|internet|bollett|utilit|\bsim\b/, "bollette"],
+    [/benzin|diesel|fuel|\bauto\b|\bcar\b|parchegg|parking|autostr|pedagg/, "auto"], [/bambin|child|scuola|asilo|pettorin/, "bambini"],
+    [/medic|salute|farmac|health/, "salute"], [/vestit|cloth|abbigl|scarpe/, "abbigliamento"], [/regal|gift|compleanno/, "regali"],
+    [/viagg|travel|hotel|aereo|treno|vacanz/, "viaggi"], [/svago|entert|cinema|giochi|games|sport|music/, "svago"],
+    [/casa|home|house|mobil|furniture|pulizi|household|manutenz/, "casa"]
+  ];
+  for (const [r, k] of reg) if (r.test(s)) return k;
+  return "altro";
+}
+$("file-csv").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const gid = gruppoCorrente; if (!gruppo(gid)) return;
+  try {
+    const rows = parseCSV(await f.text()).filter(r => r.length >= 6);
+    const head = rows.shift().map(h => h.trim());
+    const persone = head.slice(5);
+    const iMe = persone.findIndex(p => p.toLowerCase().includes(nome(me).toLowerCase()));
+    if (iMe < 0) return toast(`Nel CSV non trovo la colonna di ${nome(me)}. Colonne: ${persone.join(", ")}`, 6000);
+    const esistenti = new Set(speseGruppo(gid).map(x => x.importKey).filter(Boolean));
+    const nuove = [];
+    for (const r of rows) {
+      const data = (r[0] || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}/.test(data)) continue;
+      const descr = (r[1] || "").trim(), catSw = (r[2] || "").trim();
+      const costo = Math.round(Math.abs(parseFloat(String(r[3]).replace(",", "."))) * 100);
+      const netMe = Math.round(parseFloat(String(r[5 + iMe]).replace(",", ".")) * 100);
+      if (!(costo > 0) || isNaN(netMe)) continue;
+      const key = `${data.slice(0, 10)}|${descr}|${costo}|${netMe}`;
+      if (esistenti.has(key)) continue;
+      esistenti.add(key);
+      const isPay = /^(payment|pagamento)$/i.test(catSw);
+      const pagatoDa = netMe >= 0 ? me : other;
+      const dovuto = Math.min(Math.abs(netMe), costo);
+      nuove.push(isPay
+        ? { tipo: "saldo", gruppoId: gid, descrizione: descr || "Pareggio", importoCents: dovuto || costo, dovutoCents: dovuto || costo, data: data.slice(0, 10),
+            categoria: "altro", pagatoDa, divisione: "tutto", importKey: key }
+        : { tipo: "spesa", gruppoId: gid, descrizione: descr || "Spesa", importoCents: costo, dovutoCents: dovuto, data: data.slice(0, 10),
+            categoria: catDaSplitwise(catSw, descr), pagatoDa,
+            divisione: dovuto === 0 ? "nulla" : dovuto * 2 === costo || dovuto * 2 + 1 === costo ? "meta" : dovuto === costo ? "tutto" : "custom",
+            scontrinoId: null, importKey: key });
+    }
+    if (!nuove.length) return toast("Nessuna nuova voce da importare");
+    const prova = saldoDi(speseGruppo(gid).concat(nuove));
+    if (!confirm(`Importo ${nuove.length} voci da Splitwise nel gruppo “${nomeGruppo(gid)}”.\nDopo l'import il saldo del gruppo sarà: ${prova === 0 ? "in pari" : prova > 0 ? nome(other) + " ti deve " + eur(prova) : "devi " + eur(-prova) + " a " + nome(other)}.\nProcedo?`)) return;
+    busy("Importo…");
+    for (let i = 0; i < nuove.length; i += 400) {
+      const b = writeBatch(db);
+      nuove.slice(i, i + 400).forEach(x => b.set(doc(speseCol), { ...x, creatoDa: me, creatoIl: serverTimestamp() }));
+      await b.commit();
+    }
+    logAtt("import", null, { n: nuove.length, gruppoId: gid });
+    busy(); closeSheet(); toast(`Importate ${nuove.length} voci`);
+  } catch (err) { busy(); toast("Import non riuscito: " + errMsg(err), 6000); }
+};
+
+$("b-add").onclick = () => { if (servonoGruppi()) openForm(null); };
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
