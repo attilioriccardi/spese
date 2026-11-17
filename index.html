@@ -182,6 +182,13 @@
   .emojis button.on{border-color:var(--green);background:#24443a}
   .gpill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--card2);color:var(--muted);margin-left:6px;vertical-align:middle}
   .newgroup{margin:6px 20px;display:flex;gap:10px}
+  .search{display:flex;align-items:center;gap:8px;margin-top:14px;background:rgba(0,0,0,.28);
+    border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:0 6px 0 12px}
+  .search input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text);font-size:16px;padding:11px 0}
+  .search input::placeholder{color:rgba(255,255,255,.55)}
+  .search button{background:none;border:none;color:var(--muted);font-size:16px;padding:6px 8px}
+  .riass{padding:14px 20px 0;color:var(--muted);font-size:14px}
+  .riass b{color:var(--text)}
   #viewer{position:fixed;inset:0;z-index:30;background:#000;display:flex;align-items:center;justify-content:center}
   #viewer img{max-width:100%;max-height:100%}
   #viewer button{position:absolute;top:calc(var(--safe-t) + 14px);right:14px}
@@ -233,6 +240,7 @@
         <button class="chip" id="b-pareggia-tutto">Pareggia tutto</button>
         <button class="chip" id="b-nuovo-gruppo">＋ Nuovo gruppo</button>
       </div>
+      <div class="search"><span>🔍</span><input id="q-all" type="text" inputmode="search" placeholder="Cerca in tutti i gruppi" autocomplete="off" enterkeyhint="search"><button id="q-all-x" class="hidden" aria-label="Cancella">✕</button></div>
     </header>
     <main id="glist"></main>
   </div>
@@ -250,6 +258,7 @@
         <button class="chip" id="b-pareggia">Pareggia</button>
         <select class="chip" id="f-cat"></select>
       </div>
+      <div class="search"><span>🔍</span><input id="q-g" type="text" inputmode="search" placeholder="Cerca nel gruppo" autocomplete="off" enterkeyhint="search"><button id="q-g-x" class="hidden" aria-label="Cancella">✕</button></div>
     </header>
     <main id="list"></main>
   </div>
@@ -351,7 +360,7 @@ const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","
 const MESI_BREVI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
 
 const $ = id => document.getElementById(id);
-const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+const fmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 const eur = c => fmt.format(c / 100);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
 const oggi = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
@@ -422,7 +431,7 @@ $("l-reset").onclick = async () => {
 document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => vai(b.dataset.v));
 function vai(v, gid) {
   if (v === "gruppo") {
-    gruppoCorrente = gid; filtroCat = "";
+    gruppoCorrente = gid; filtroCat = ""; $("q-g").value = ""; $("q-g-x").classList.add("hidden");
     ls.set("ultimo-gruppo", gid);
     if (vista !== "gruppo") history.pushState({ g: gid }, "");
   } else if (vista === "gruppo" && history.state?.g) {
@@ -472,6 +481,38 @@ function testoSaldo(s, vuoto = "Siete in pari 👌") {
             : `Devi a ${esc(nome(other))} <b class="neg">${eur(-s)}</b>`;
 }
 
+/* ---- Ricerca ---- */
+const norm = t => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+function corrisponde(x, q) {
+  if (!q) return true;
+  const testo = norm([x.descrizione, x.tipo === "saldo" ? "pareggio" : cat(x.categoria)[2], nomeGruppo(x.gruppoId), nome(x.pagatoDa)].join(" "));
+  const importi = [x.importoCents, x.dovutoCents].map(c => centsToInput(c)).join(" ");
+  return norm(q).split(/\s+/).filter(Boolean).every(p => testo.includes(p) || (/\d/.test(p) && importi.includes(p.replace(".", ","))));
+}
+function riassunto(lista) {
+  const sp = lista.filter(x => x.tipo !== "saldo");
+  const n = lista.length;
+  return `<div class="riass"><b>${n}</b> ${n === 1 ? "risultato" : "risultati"}${sp.length ? ` · totale <b>${eur(sp.reduce((a, x) => a + x.importoCents, 0))}</b>` : ""}</div>`;
+}
+function elencoSpese(lista, conGruppo) {
+  const totMese = {};
+  for (const x of lista) if (x.tipo !== "saldo") { const m = x.data.slice(0, 7); totMese[m] = (totMese[m] || 0) + x.importoCents; }
+  let html = "", meseCorr = "";
+  for (const x of lista) {
+    const m = x.data.slice(0, 7);
+    if (m !== meseCorr) { meseCorr = m; html += `<div class="month"><span>${meseLabel(m)}</span><span>speso ${eur(totMese[m] || 0)}</span></div>`; }
+    html += rigaSpesa(x, conGruppo);
+  }
+  return html;
+}
+function collegaRicerca(idIn, idX, fn) {
+  $(idIn).addEventListener("input", () => { $(idX).classList.toggle("hidden", !$(idIn).value); fn(); });
+  $(idX).onclick = () => { $(idIn).value = ""; $(idX).classList.add("hidden"); fn(); $(idIn).focus(); };
+  $(idIn).addEventListener("keydown", e => { if (e.key === "Enter") $(idIn).blur(); });
+}
+collegaRicerca("q-all", "q-all-x", () => renderGruppi());
+collegaRicerca("q-g", "q-g-x", () => renderLista());
+
 /* ---- Pagina generale: elenco gruppi ---- */
 function ultimaData(g) {
   const l = speseGruppo(g.id);
@@ -479,6 +520,13 @@ function ultimaData(g) {
 }
 function renderGruppi() {
   $("saldo-tot").innerHTML = testoSaldo(saldoDi(spese));
+  const q = $("q-all").value.trim();
+  if (q) {
+    const ris = spese.filter(x => corrisponde(x, q));
+    $("glist").innerHTML = ris.length ? riassunto(ris) + elencoSpese(ris, true)
+      : `<div class="empty">Nessuna spesa trovata per “${esc(q)}”.</div>`;
+    return;
+  }
   if (!gruppi.length) {
     $("glist").innerHTML = `<div class="empty">Nessun gruppo ancora.<br>Crea un gruppo, per esempio “Spese 2026” o “Vacanze”, e poi aggiungi le spese al suo interno.<div class="gap"></div><button class="btn" id="b-primo" style="max-width:280px;margin:10px auto 0">＋ Crea il primo gruppo</button></div>`;
     $("b-primo").onclick = () => formGruppo(null);
@@ -505,7 +553,12 @@ function renderGruppi() {
   $("glist").innerHTML = html;
   $("b-arch")?.addEventListener("click", () => { mostraArchiviati = !mostraArchiviati; renderGruppi(); });
 }
-$("glist").onclick = e => { const b = e.target.closest(".gitem"); if (b) vai("gruppo", b.dataset.g); };
+$("glist").onclick = e => {
+  const b = e.target.closest(".gitem"); if (b) return vai("gruppo", b.dataset.g);
+  const it = e.target.closest(".item"); if (!it) return;
+  const x = spese.find(s => s.id === it.dataset.id);
+  if (x) x.tipo === "saldo" ? openSaldo(x) : openForm(x);
+};
 $("b-nuovo-gruppo").onclick = () => formGruppo(null);
 
 /* ---- Dettaglio gruppo ---- */
@@ -521,7 +574,7 @@ function renderCatFilter() {
 }
 $("f-cat").onchange = e => { filtroCat = e.target.value; renderCatFilter(); renderLista(); };
 
-function rigaSpesa(x) {
+function rigaSpesa(x, conGruppo) {
   const [, mm, dd] = x.data.split("-");
   const io = x.pagatoDa === me;
   let ico, titolo, sotto, dx;
@@ -529,11 +582,13 @@ function rigaSpesa(x) {
     ico = `<div class="ico saldo-ico">💸</div>`;
     titolo = io ? `Hai dato ${eur(x.importoCents)} a ${esc(nome(other))}` : `${esc(nome(other))} ti ha dato ${eur(x.importoCents)}`;
     sotto = esc(x.descrizione || "Pareggio");
+    if (conGruppo) sotto = `${esc(nomeGruppo(x.gruppoId))} · ` + sotto;
     dx = "";
   } else {
     ico = `<div class="ico">${cat(x.categoria)[1]}${x.scontrinoId ? `<span class="clip">📎</span>` : ""}</div>`;
     titolo = esc(x.descrizione);
     sotto = io ? `Hai pagato ${eur(x.importoCents)}` : `${esc(nome(other))} ha pagato ${eur(x.importoCents)}`;
+    if (conGruppo) sotto = `${esc(gruppo(x.gruppoId)?.emoji || "")} ${esc(nomeGruppo(x.gruppoId))} · ` + sotto;
     dx = x.dovutoCents === 0 ? `<small class="grey">non diviso</small>`
       : io ? `<small class="pos">hai prestato</small><b class="pos">${eur(x.dovutoCents)}</b>`
            : `<small class="neg">ti ha prestato</small><b class="neg">${eur(x.dovutoCents)}</b>`;
@@ -545,20 +600,14 @@ function rigaSpesa(x) {
 }
 function renderLista() {
   let lista = speseGruppo(gruppoCorrente);
+  const q = $("q-g").value.trim();
   if (filtroCat) lista = lista.filter(x => x.tipo !== "saldo" && x.categoria === filtroCat);
+  if (q) lista = lista.filter(x => corrisponde(x, q));
   if (!lista.length) {
-    $("list").innerHTML = `<div class="empty">${filtroCat ? "Nessuna spesa in questa categoria." : "Nessuna spesa in questo gruppo.<br>Tocca “Aggiungi spesa” o fotografa uno scontrino."}</div>`;
+    $("list").innerHTML = `<div class="empty">${q ? `Nessuna spesa trovata per “${esc(q)}”.` : filtroCat ? "Nessuna spesa in questa categoria." : "Nessuna spesa in questo gruppo.<br>Tocca “Aggiungi spesa” o fotografa uno scontrino."}</div>`;
     return;
   }
-  const totMese = {};
-  for (const x of lista) if (x.tipo !== "saldo") { const m = x.data.slice(0, 7); totMese[m] = (totMese[m] || 0) + x.importoCents; }
-  let html = "", meseCorr = "";
-  for (const x of lista) {
-    const m = x.data.slice(0, 7);
-    if (m !== meseCorr) { meseCorr = m; html += `<div class="month"><span>${meseLabel(m)}</span><span>speso ${eur(totMese[m] || 0)}</span></div>`; }
-    html += rigaSpesa(x);
-  }
-  $("list").innerHTML = html;
+  $("list").innerHTML = (q || filtroCat ? riassunto(lista) : "") + elencoSpese(lista, false);
 }
 $("list").onclick = e => {
   const b = e.target.closest(".item"); if (!b) return;
