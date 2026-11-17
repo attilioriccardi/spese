@@ -1149,17 +1149,31 @@ function parseCSV(t) {
   if (f || row.length) { row.push(f); rows.push(row); }
   return rows;
 }
+// Categoria: prima dalla descrizione (più precisa), poi dalla categoria di Splitwise
+const REGOLE_CAT = [
+  [/giroconto|bonifico|prestito|rimborso/, "giroconto"],
+  [/farmac|medic|dentist|nurofen|fluimucil|collirio|amuchina|magnesio|integrator|esami|otite|cerotti|allergi|ospedal|visita/, "salute"],
+  [/mensa|liceo|scuola|cartoleria|cancelleria|estate ragazzi|catechismo|gita|zaino|quaderni|astucci|libri|merend|bimbi|ricarica.*elia|baby|pannolin/, "bambini"],
+  [/benzin|diesel|carbur|telepass|\bpark|parchegg|autostr|pedagg|tagliando|gomme|meccanic/, "auto"],
+  [/sushi|akami|giappon|pizz|burger|mcdonald|spizzico|gelat|cena|pranzo|ristor|\bbar\b|caff|granita|trattoria|osteria|risto\b|croissant|aperitiv|birra|vino|alcol/, "ristoranti"],
+  [/spesa|eataly|coop|lidl|eurospin|basko|bennet|crai|conad|carrefour|esselunga|bofrost|eismann|macell|panett|panific|\bpane\b|verdura|frutt|alimentar|market|mercato|latte|vincenzo|filrouge|fil rouge|aliment/, "alimentari"],
+  [/bollett|idric|acqua.*serviz|luce|\bgas\b|enel|fibra|internet|\bsim\b|\btim\b|netflix|disney|google one|abbonament|tari\b|utenz|pellet/, "bollette"],
+  [/abiti|vestit|scarpe|costume|maglie|maglia|camicia|pantalon|giacc|intimo|h&m|original marines|clayton|claiton|pepco|guanti|calze/, "abbigliamento"],
+  [/regal|pensier|compleanno|battesim|offerta/, "regali"],
+  [/campegg|camping|hotel|vacanz|viaggi|aereo|treno|traghett/, "viaggi"],
+  [/cinema|teatro|giostre|luna park|bowling|pattinagg|concerto|musica|sport|piscina|svago|intratten|gioc/, "svago"],
+  [/casa|pulizi|irene|ferrament|leroy|ikea|viridea|mobil|arredam|manutenz|pittura|tenda|lampad|detersiv|aspirapolv|caldaia|stufa|piant|giardin|assicuraz|polizza|lavatrice|cuscin|materass|tovagli/, "casa"]
+];
 function catDaSplitwise(c, d) {
-  const s = (c + " " + d).toLowerCase();
-  const reg = [
-    [/giroconto|trasfer/, "giroconto"], [/aliment|grocer|spesa|supermerc|panett|macell|coop|conad|esselunga|lidl|carrefour/, "alimentari"],
-    [/ristor|dining|pizz|\bbar\b|cena|pranzo|vino|liquor/, "ristoranti"], [/elettric|\bgas\b|acqua|water|\btv\b|telefon|internet|bollett|utilit|\bsim\b/, "bollette"],
-    [/benzin|diesel|fuel|\bauto\b|\bcar\b|parchegg|parking|autostr|pedagg/, "auto"], [/bambin|child|scuola|asilo|pettorin/, "bambini"],
-    [/medic|salute|farmac|health/, "salute"], [/vestit|cloth|abbigl|scarpe/, "abbigliamento"], [/regal|gift|compleanno/, "regali"],
-    [/viagg|travel|hotel|aereo|treno|vacanz/, "viaggi"], [/svago|entert|cinema|giochi|games|sport|music/, "svago"],
-    [/casa|home|house|mobil|furniture|pulizi|household|manutenz/, "casa"]
-  ];
-  for (const [r, k] of reg) if (r.test(s)) return k;
+  const desc = (d || "").toLowerCase(), cs = (c || "").toLowerCase();
+  for (const [r, k] of REGOLE_CAT) if (r.test(desc)) return k;
+  const MAPPA = { "alimentari": "alimentari", "ristorante": "ristoranti", "alcolici": "ristoranti", "spese mediche": "salute",
+    "regali": "regali", "carburante": "auto", "manutenzione": "casa", "arredamento": "casa", "cinema": "svago", "musica": "svago",
+    "sport": "svago", "intrattenimento - altro": "svago", "utenze - altro": "bollette", "tv/telefono/internet": "bollette",
+    "elettricità": "bollette", "gas": "bollette", "acqua": "bollette", "medico": "salute", "vestiti": "abbigliamento",
+    "groceries": "alimentari", "dining out": "ristoranti", "gas/fuel": "auto", "medical expenses": "salute", "gifts": "regali" };
+  if (MAPPA[cs]) return MAPPA[cs];
+  for (const [r, k] of REGOLE_CAT) if (r.test(cs)) return k;
   return "altro";
 }
 $("file-csv").onchange = async e => {
@@ -1172,7 +1186,7 @@ $("file-csv").onchange = async e => {
     const iMe = persone.findIndex(p => p.toLowerCase().includes(nome(me).toLowerCase()));
     if (iMe < 0) return toast(`Nel CSV non trovo la colonna di ${nome(me)}. Colonne: ${persone.join(", ")}`, 6000);
     const esistenti = new Set(speseGruppo(gid).map(x => x.importKey).filter(Boolean));
-    const nuove = [];
+    const nuove = [], occorrenze = {};
     for (const r of rows) {
       const data = (r[0] || "").trim();
       if (!/^\d{4}-\d{2}-\d{2}/.test(data)) continue;
@@ -1180,9 +1194,11 @@ $("file-csv").onchange = async e => {
       const costo = Math.round(Math.abs(parseFloat(String(r[3]).replace(",", "."))) * 100);
       const netMe = Math.round(parseFloat(String(r[5 + iMe]).replace(",", ".")) * 100);
       if (!(costo > 0) || isNaN(netMe)) continue;
-      const key = `${data.slice(0, 10)}|${descr}|${costo}|${netMe}`;
+      if (/^(bilancio totale|total balance)$/i.test(descr)) continue;
+      const base = `${data.slice(0, 10)}|${descr}|${costo}|${netMe}`;
+      occorrenze[base] = (occorrenze[base] || 0) + 1;      // voci identiche nello stesso file restano distinte
+      const key = base + "#" + occorrenze[base];
       if (esistenti.has(key)) continue;
-      esistenti.add(key);
       const isPay = /^(payment|pagamento)$/i.test(catSw);
       const pagatoDa = netMe >= 0 ? me : other;
       const dovuto = Math.min(Math.abs(netMe), costo);
@@ -1191,7 +1207,7 @@ $("file-csv").onchange = async e => {
             categoria: "altro", pagatoDa, divisione: "tutto", importKey: key }
         : { tipo: "spesa", gruppoId: gid, descrizione: descr || "Spesa", importoCents: costo, dovutoCents: dovuto, data: data.slice(0, 10),
             categoria: catDaSplitwise(catSw, descr), pagatoDa,
-            divisione: dovuto === 0 ? "nulla" : dovuto * 2 === costo || dovuto * 2 + 1 === costo ? "meta" : dovuto === costo ? "tutto" : "custom",
+            divisione: dovuto === 0 ? "nulla" : Math.abs(dovuto * 2 - costo) <= 1 ? "meta" : dovuto === costo ? "tutto" : "custom",
             scontrinoId: null, importKey: key });
     }
     if (!nuove.length) return toast("Nessuna nuova voce da importare");
