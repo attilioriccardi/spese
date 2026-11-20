@@ -309,7 +309,7 @@
   <div class="sheet" id="sheet"></div>
 </div>
 <div id="viewer" class="hidden"><img id="viewer-img" alt="Scontrino"><button class="iconbtn" id="viewer-x">✕</button></div>
-<div id="busy" class="hidden"><div class="spin"></div><div id="busy-t"></div></div>
+<div id="busy" class="hidden"><div class="spin"></div><div id="busy-t"></div><button class="btn ghost hidden" id="busy-skip" style="width:auto;padding:10px 22px;color:#fff;border-color:rgba(255,255,255,.4)">Inserisci a mano</button></div>
 <div id="toast" class="hidden"></div>
 
 <script type="module">
@@ -330,7 +330,7 @@ const PERSONE = {
   "elisa.berger@gmail.com":    "Elisa"
 };
 // Modelli Gemini usati per leggere gli scontrini (si prova il primo, poi il successivo)
-const MODELLI_AI = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+const MODELLI_AI = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];   // il primo è il più veloce
 /* ===================================================================== */
 
 const FB = "https://www.gstatic.com/firebasejs/13.3.0/";
@@ -397,6 +397,7 @@ onAuthStateChanged(auth, user => {
   if (!PERSONE[email]) { toast("Questa email non è autorizzata."); signOut(auth); return; }
   me = email; other = Object.keys(PERSONE).find(e => e !== me);
   $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  setTimeout(() => caricaAI().catch(() => {}), 2500);   // prepara in anticipo la lettura degli scontrini
   unsubs.push(onSnapshot(query(gruppiCol, orderBy("creatoIl", "desc")), snap => {
     gruppi = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (vista === "gruppo" && !gruppo(gruppoCorrente)) vai("gruppi");
@@ -888,31 +889,53 @@ function comprimi(file) {
 
 /* ---------------- LETTURA SCONTRINO (Gemini) ---------------- */
 let aiMod = null;
-async function leggiScontrino(dataUrl) {
+async function caricaAI() {
   if (!aiMod) {
     const m = await import(FB + "firebase-ai.js");
     aiMod = { m, ai: m.getAI(fbApp, { backend: new m.GoogleAIBackend() }) };
   }
+  return aiMod;
+}
+const conTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error("tempo scaduto")), ms))]);
+async function leggiScontrino(dataUrl, annullato) {
+  await caricaAI();
   const prompt = `Questa è la foto di uno scontrino o di una ricevuta italiana. Estrai i dati e rispondi SOLO con un oggetto JSON:
 {"descrizione": string, "totale": number, "data": string|null, "categoria": string}
 - descrizione: breve, max 40 caratteri, del tipo "Spesa Ipercoop", "Farmacia Comunale", "Benzina Q8", usando il nome del negozio.
 - totale: l'importo TOTALE effettivamente pagato (cerca TOTALE, TOTALE COMPLESSIVO, IMPORTO PAGATO), in euro con il punto come separatore decimale.
 - data: la data dello scontrino nel formato YYYY-MM-DD, oppure null se non leggibile.
 - categoria: una sola tra ${CATEGORIE.map(c => c[0]).filter(c => c !== "giroconto").join(", ")}.`;
+  const immagine = { inlineData: { data: dataUrl.split(",")[1], mimeType: "image/jpeg" } };
+  // prova prima il modello che ha funzionato l'ultima volta
+  const ok = ls.get("modello-ok");
+  const modelli = ok && MODELLI_AI.includes(ok) ? [ok, ...MODELLI_AI.filter(m => m !== ok)] : MODELLI_AI;
   let ultimoErr;
-  for (const nomeModello of MODELLI_AI) {
-    try {
-      const model = aiMod.m.getGenerativeModel(aiMod.ai, { model: nomeModello, generationConfig: { responseMimeType: "application/json" } });
-      const r = await model.generateContent([prompt, { inlineData: { data: dataUrl.split(",")[1], mimeType: "image/jpeg" } }]);
-      const testo = r.response.text().replace(/```json|```/g, "").trim();
-      const j = JSON.parse(testo.slice(testo.indexOf("{"), testo.lastIndexOf("}") + 1));
-      return {
-        descrizione: String(j.descrizione || "").slice(0, 80),
-        importoCents: typeof j.totale === "number" ? Math.round(j.totale * 100) : parseCents(j.totale),
-        data: /^\d{4}-\d{2}-\d{2}$/.test(j.data || "") ? j.data : null,
-        categoria: CAT[j.categoria] ? j.categoria : "altro"
-      };
-    } catch (e) { ultimoErr = e; }
+  for (const nomeModello of modelli) {
+    // prima con il "ragionamento" al minimo (molto più veloce), poi senza se il modello non lo supporta
+    const prove = ls.get("nothink-" + nomeModello) ? [false] : [true, false];
+    for (const thinking of prove) {
+      if (annullato()) throw new Error("annullato");
+      try {
+        const generationConfig = { responseMimeType: "application/json", temperature: 0 };
+        if (thinking) generationConfig.thinkingConfig = { thinkingLevel: "MINIMAL" };
+        const model = aiMod.m.getGenerativeModel(aiMod.ai, { model: nomeModello, generationConfig });
+        const r = await conTimeout(model.generateContent([prompt, immagine]), 25000);
+        const testo = r.response.text().replace(/```json|```/g, "").trim();
+        const j = JSON.parse(testo.slice(testo.indexOf("{"), testo.lastIndexOf("}") + 1));
+        ls.set("modello-ok", nomeModello);
+        if (!thinking) ls.set("nothink-" + nomeModello, "1");   // la prossima volta salta il tentativo inutile
+        return {
+          descrizione: String(j.descrizione || "").slice(0, 80),
+          importoCents: typeof j.totale === "number" ? Math.round(j.totale * 100) : parseCents(j.totale),
+          data: /^\d{4}-\d{2}-\d{2}$/.test(j.data || "") ? j.data : null,
+          categoria: CAT[j.categoria] ? j.categoria : "altro"
+        };
+      } catch (e) {
+        ultimoErr = e; console.warn(nomeModello, thinking, e);
+        if (e.message === "tempo scaduto") break;            // inutile riprovare lo stesso modello
+        if (!thinking) break;
+      }
+    }
   }
   throw ultimoErr;
 }
@@ -924,11 +947,20 @@ $("file-scontrino").onchange = async e => {
   let img;
   try { busy("Preparo la foto…"); img = await comprimi(f); }
   catch (err) { busy(); return toast("Non riesco ad aprire la foto"); }
-  let letto = null, errore = null;
-  try { busy("Leggo lo scontrino…"); letto = await leggiScontrino(img); }
+  let letto = null, errore = null, saltato = false;
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    const sec = Math.round((Date.now() - t0) / 1000);
+    $("busy-t").textContent = `Leggo lo scontrino… ${sec}s`;
+    if (sec >= 4) $("busy-skip").classList.remove("hidden");
+  }, 500);
+  const salta = new Promise(res => { $("busy-skip").onclick = () => { saltato = true; res(); }; });
+  busy("Leggo lo scontrino…");
+  try { await Promise.race([leggiScontrino(img, () => saltato).then(r => { letto = r; }), salta]); }
   catch (err) { errore = err; console.error(err); }
-  busy();
-  openForm(null, { scontrinoData: img, letto, errore });
+  clearInterval(tick); $("busy-skip").classList.add("hidden"); busy();
+  if (saltato) { letto = null; errore = null; }
+  openForm(null, { scontrinoData: img, letto, errore, saltato });
 };
 
 /* ---------------- FORM SPESA ---------------- */
@@ -946,7 +978,8 @@ function openForm(x, opz = {}) {
   const descr = x?.descrizione ?? L.descrizione ?? "";
   const imp = x ? centsToInput(x.importoCents) : (L.importoCents > 0 ? centsToInput(L.importoCents) : "");
   const data = x?.data || L.data || oggi();
-  const aiBox = opz.scontrinoData
+  const aiBox = opz.saltato ? `<div class="ai-box">La foto è allegata: inserisci i dati a mano.</div>`
+    : opz.scontrinoData
     ? (opz.letto ? `<div class="ai-box">✨ Ho letto lo scontrino: controlla i dati e scegli come dividere.</div>`
                  : `<div class="ai-box" style="background:#4a3326">Non sono riuscito a leggere lo scontrino${opz.errore ? ` (${esc(errMsg(opz.errore)).slice(0, 80)})` : ""}. La foto è allegata: inserisci i dati a mano.</div>`)
     : "";
